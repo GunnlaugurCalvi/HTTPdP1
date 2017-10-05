@@ -21,8 +21,17 @@ int main(int argc, char *argv[])
 	char buf[1025];
 	time_t sec;
 
-	portNumber = atoi(argv[1]);
-	printf("using portNumber %d\n", portNumber);
+
+	//Input is valid
+	if(argc != 2){
+		printf("[ERR] Invalid input: Must take only 1 parameter(portnumber) \n");
+		exit(EXIT_FAILURE);
+	}
+
+	if(argc == 2){
+		portNumber = atoi(argv[1]);
+		printf("using portNumber %d\n", portNumber);
+	}
 
 	//Create socket
 	if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
