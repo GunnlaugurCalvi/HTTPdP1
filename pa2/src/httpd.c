@@ -8,16 +8,20 @@
 #include <string.h>
 #include <sys/types.h>
 #include <time.h>
+#include <ctype.h>
 #include <stdbool.h>
 #include <glib.h>
 #include <poll.h>
-
+//#include <libexplain/poll.h>
 int main(int argc, char *argv[])
 {
 	//Initialize and declare variables
 	int sock = 0, connfd = 0;
 	int portNumber;
+	ssize_t val;
 	struct sockaddr_in server, client;
+	struct pollfd fd;
+	int timeout_msecs = 500;
 	char buf[1025];
 	time_t sec;
 
@@ -35,7 +39,7 @@ int main(int argc, char *argv[])
 
 	//Create socket
 	if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-		perror("Socket Error");
+		perror("Socket error\n");
 		exit(EXIT_FAILURE);
 	}
 	//Allocate memory for the server and buffer
@@ -48,24 +52,42 @@ int main(int argc, char *argv[])
 
 	//Bind socket to socket address, exit if it fails
 	if(bind(sock, (struct sockaddr*) &server, sizeof(server)) < 0){
-			perror("Bind error");
+			perror("Bind error\n");
 			exit(EXIT_FAILURE);
 	}
 	//Listen to the socket, allow queue of maximum 1
-	listen(sock, 1);
+	if(listen(sock, 1) < 0){
+		perror("Listen error\n");
+		exit(EXIT_FAILURE);		
+	}
+	
 	while(true){
 		socklen_t clientlen = (socklen_t) sizeof(client);
 		//Acceppt connection on socket, no restrictions
-		connfd = accept(sock, (struct sockaddr*) &client, &clientlen);
+		if((val = poll(&fd, sock, timeout_msecs) < 0)){
+			//[explain_poll]Explains underlying cause of error in more detail
+			//fprintf(stderr, "%s\n", explain_poll(&fd, sock, timeout_msecs));
+			perror("Poll error\n");
+			exit(EXIT_FAILURE);
+		}
+		if((connfd = accept(sock, (struct sockaddr*) &client, &clientlen) < 0)){
+			perror("Accept error\n");
+			exit(EXIT_FAILURE);	
+		}
 		//Start the clock
 		sec = time(NULL);
+		
+		//Get the client IP and port in human readable form
+		char *clientIP = inet_ntoa(client.sin_addr);
+		unsigned short cPort = ntohs(client.sin_port);
+		fprintf(stdout,"Client IP %s:%d\n", clientIP, cPort);	
+		fflush(stdout);
 		//Write out time and filedescriptor
 		snprintf(buf, sizeof(buf), "%.24s\r\n", ctime(&sec));
 		write(connfd, buf, strlen(buf));
 		
-
+		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
-		sleep(1);
 	}
 	return 0;
 }
