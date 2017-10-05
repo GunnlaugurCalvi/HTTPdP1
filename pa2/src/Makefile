@@ -8,7 +8,7 @@ LDLIBS =
 .DEFAULT: all
 .PHONY: all
 all: httpd
-
+	gcc -O2 -Wall -Wextra -Wformat=2 -o httpd httpd.c
 clean:
 	rm -f *.o
 
