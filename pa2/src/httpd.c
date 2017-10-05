@@ -33,8 +33,8 @@ int main(int argc, char *argv[])
 	memset(&server, '0', sizeof(server));
 	memset(buf, '0', sizeof(buf));
 
-	server.sin_family = AF_INET;				//WE ARE FAM ILY
-	server.sin_addr.s_addr = htonl(INADDR_ANY); //Long integer -> Network byte order
+	server.sin_family = AF_INET;			//WE ARE FAM ILY
+	server.sin_addr.s_addr = htonl(INADDR_ANY);	//Long integer -> Network byte order
 	server.sin_port = htons(portNumber);		//Set port number for the server
 
 	//Bind socket to socket address, exit if it fails
@@ -45,8 +45,9 @@ int main(int argc, char *argv[])
 	//Listen to the socket, allow queue of maximum 1
 	listen(sock, 1);
 	while(true){
+		socklen_t clientlen = (socklen_t) sizeof(client);
 		//Acceppt connection on socket, no restrictions
-		connfd = accept(sock, (struct sockaddr*) NULL, NULL);
+		connfd = accept(sock, (struct sockaddr*) &client, &clientlen);
 		//Start the clock
 		sec = time(NULL);
 		//Write out time and filedescriptor
