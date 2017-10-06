@@ -20,22 +20,24 @@ const int MESSAGESIZE = 4096;
 
 //Helper functions
 //void createHashTable(GHashTable *hashTable, char *msg);
-void buildHead(GString *resp);
+
+void buildHeader(GString *headerResponse, gsize contentLen);			
+void getIsoDate(char *buf);
+void buildHead(GString *headerResponse);
 void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, char port[], bool isGoods);
-					
 
 int main(int argc, char *argv[])
 {
 	//Initialize and declare variables
 	gint sock = 0, connfd = 0;
 	gint portNumber, val;
+	gsize conLen;
 	struct sockaddr_in server, client;
 	struct pollfd fds;
 	gint timeout_msecs = 500;
 	char buf[BUFSIZE];
 	char msg[MESSAGESIZE];
-	time_t t;
-	struct tm *timeZone = NULL;
+	//struct tm *timeZone = NULL;
 	FILE *logger;	
 	GHashTable *hashTable;
 
@@ -57,7 +59,6 @@ int main(int argc, char *argv[])
 	}
 	//Allocate memory for the server and buffer
 	memset(&server, 0, sizeof(server));
-
 	server.sin_family = AF_INET;			//WE ARE FAM ILY
 	server.sin_addr.s_addr = htonl(INADDR_ANY);	//Long integer -> Network byte order
 	server.sin_port = htons(portNumber);		//Set port number for the server
@@ -76,7 +77,7 @@ int main(int argc, char *argv[])
 	while(true){
 		socklen_t clientlen = (socklen_t) sizeof(client);
 		GString *resp = g_string_new("<!DOCTYPE html>\n<html>");
-	
+		GString *headerResponse = g_string_new("HTTP/1.1 200 OK\r\n");
 		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
 			//[explain_poll]Explains underlying cause of error in more detail
 			//fprintf(stderr, "%s\n", explain_poll(&fd, sock, timeout_msecs));
@@ -105,6 +106,10 @@ int main(int argc, char *argv[])
 			buildHead(resp);
 			buildBooty(resp, msg, client, argv[1], false);
 		}
+		else{
+			perror("Bad Request\n");
+			exit(EXIT_FAILURE);
+		}
 
 
 		//Initilize hash table 
@@ -112,31 +117,95 @@ int main(int argc, char *argv[])
 		
 	//	createHashTable(hashTable, msg);
 		
-		//Start the clock
-		t = time(NULL);
-		timeZone = localtime(&t);
-
 		//Get the client IP and port in human readable form
 		char *clientIP = inet_ntoa(client.sin_addr);
 		unsigned short cPort = ntohs(client.sin_port);	
 		fprintf(stdout,"Client IP and port %s:%d\n", clientIP, cPort);	
 		fflush(stdout);
-		//Write out time in ISO 8601 format!
-		//Could not use the g_time_val_to_iso8601() because it is in version 2.12
-		if(strftime(buf,sizeof(buf), "%FT%T\n", timeZone) == 0){
-			fprintf(stderr, "Strftime error\n");
-			exit(EXIT_FAILURE);
-		}
-		write(connfd, buf, strlen(buf));
 		
-		write(connfd, resp->str, resp->len);
+		
+		//Write out time in ISO 8601 format!
+		getIsoDate(buf);
+	
+		
+		write(connfd, buf, strlen(buf));
+
+		conLen = resp->allocated_len;
+
+		buildHeader(headerResponse, conLen);
+
+		g_string_append(headerResponse, resp->str);
+
+		write(connfd, headerResponse->str, headerResponse->len);
+		
 		g_string_free(resp, 1);
+		g_string_free(headerResponse, 1);	
+	
+
+
 		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
 	}
 	return 0;
 }
 
+void buildHeader(GString *headerResponse, gsize contentLen){
+
+	char isodate[BUFSIZE];
+	char unBuf[10];
+	getIsoDate(isodate);
+	g_string_append(headerResponse, "Date: ");
+	g_string_append(headerResponse, isodate);
+	g_string_append(headerResponse, "\r\n");
+	g_string_append(headerResponse, "Content-Length: ");
+	sprintf(unBuf, "%u", contentLen);
+	g_string_append(headerResponse, unBuf);
+	g_string_append(headerResponse, "\r\n");
+	g_string_append(headerResponse, "Content-Type: text/html\r\n\r\n");
+
+}
+
+void getIsoDate(char *buf){
+	//Start the clock
+	struct tm *timeZone;
+	time_t t = time(&t);
+	timeZone = localtime(&t);
+
+	//Could not use the g_time_val_to_iso8601() because it is in version 2.12
+	if(strftime(buf, BUFSIZE,"%FT%T\n", timeZone) == 0){
+		fprintf(stderr, "Strftime error\n");
+		exit(EXIT_FAILURE);
+	}
+}
+void buildHead(GString *resp){
+	g_string_append(resp, "<head>\n YALL FINISHED OR YALL DONE \n</head>\n");
+}
+void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[], bool isGoods){
+
+
+	g_string_append(resp, "<body>");
+	g_string_append(resp , "\n");
+	g_string_append(resp, "http://");
+	gchar **splitter = g_strsplit(msg, ": ", -1);
+	
+	//strips away leading and trailing whitespace from string
+	g_string_append(resp, g_strstrip(splitter[1]));
+	
+	g_string_append(resp, " ");
+	g_string_append(resp, inet_ntoa(client.sin_addr));
+	g_string_append(resp, ":");
+	g_string_append(resp, port);
+	g_string_append(resp, "\n");
+
+	//If it includes goods make dat gooshiii
+	
+	g_string_append(resp, "\n");
+	g_string_append(resp, "BIG BUTT\n");
+	g_string_append(resp, "</body>\n</html>");
+	g_string_append(resp, "\n");
+	
+	g_strfreev(splitter);
+}
 
 /*void createHashTable(GHashTable *hashTable, char *msg){
 
@@ -175,29 +244,4 @@ int main(int argc, char *argv[])
 	g_strfreev(header);
 }*/
 
-void buildHead(GString *resp){
-	g_string_append(resp, "<head>\n</head>\n");
-}
-void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[], bool isGoods){
-	g_string_append(resp, "http://");
-	gchar **splitter = g_strsplit(msg, ": ", -1);
-	//strips away leading and trailing whitespace from string
-	g_string_append(resp, g_strstrip(splitter[1]));
-	g_string_append(resp, " ");
-	g_string_append(resp, inet_ntoa(client.sin_addr));
-	g_string_append(resp, ":");
-	g_string_append(resp, port);
-	g_string_append(resp, "\n");
 
-	//If it includes goods make dat gooshiii
-	
-	g_string_append(resp, "<body>");
-	g_string_append(resp, "\n");
-	g_string_append(resp, "BIG BUTT\n");
-	g_string_append(resp, "</body>");
-	g_string_append(resp, "\n");
-	
-	g_strfreev(splitter);
-}
-
-	
