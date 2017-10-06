@@ -96,13 +96,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 		
-		fprintf(stdout,"REVEEEVD \n%s\n", msg);
-		fflush(stdout);	
-	
-		
 		if(g_str_has_prefix(msg, "GET")){
-			fprintf(stdout, "GETGETGET\n");
-			fflush(stdout);
 			buildHead(resp);
 			buildBooty(resp, msg, client, argv[1], false);
 		}
@@ -124,8 +118,7 @@ int main(int argc, char *argv[])
 		fflush(stdout);
 		
 		
-		//Write out time in ISO 8601 format!
-		getIsoDate(buf);
+		//getIsoDate(buf);
 	
 		
 		write(connfd, buf, strlen(buf));
@@ -153,6 +146,7 @@ void buildHeader(GString *headerResponse, gsize contentLen){
 
 	char isodate[BUFSIZE];
 	char unBuf[10];
+	//Write out time in ISO 8601 format!
 	getIsoDate(isodate);
 	g_string_append(headerResponse, "Date: ");
 	g_string_append(headerResponse, isodate);
