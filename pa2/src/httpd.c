@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 		}
 		write(connfd, buf, strlen(buf));
 		
-		write(connfd, resp->str, (size_t) resp->str);
+		write(connfd, resp->str, resp->len);
 		g_string_free(resp, 1);
 		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
