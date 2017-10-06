@@ -20,6 +20,9 @@ const int MESSAGESIZE = 4096;
 
 //Helper functions
 void createHashTable(GHashTable *hashTable, char *msg);
+void buildHead(GString *resp);
+void buildBooty(char resp[], char msg[], char *cli, unsigned short port, bool isGoods);
+					
 
 int main(int argc, char *argv[])
 {
@@ -71,7 +74,9 @@ int main(int argc, char *argv[])
 	
 	while(true){
 		socklen_t clientlen = (socklen_t) sizeof(client);
-		
+		GString *resp = g_string_new("<!DOCTYPE html>\n<html>");
+
+	
 		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
 			//[explain_poll]Explains underlying cause of error in more detail
 			//fprintf(stderr, "%s\n", explain_poll(&fd, sock, timeout_msecs));
@@ -92,8 +97,18 @@ int main(int argc, char *argv[])
 		
 		fprintf(stdout,"REVEEEVD \n%s\n", msg);
 		fflush(stdout);	
-		
+	
+		//Get the client IP and port in human readable form
+		char *clientIP = inet_ntoa(client.sin_addr);
+		unsigned short cPort = ntohs(client.sin_port);
 
+		
+		if(g_str_has_prefix(msg, "GET")){
+			fprintf(stdout, "GETGETGET\n");
+			fflush(stdout);
+			buildHead(resp);
+			//buildBooty(resp, msg, clientIP, cPort, false);
+		}
 
 
 		//Initilize hash table 
@@ -105,9 +120,6 @@ int main(int argc, char *argv[])
 		t = time(NULL);
 		timeZone = localtime(&t);
 	
-		//Get the client IP and port in human readable form
-		char *clientIP = inet_ntoa(client.sin_addr);
-		unsigned short cPort = ntohs(client.sin_port);
 		fprintf(stdout,"Client IP and port %s:%d\n", clientIP, cPort);	
 		fflush(stdout);
 		//Write out time in ISO 8601 format!
@@ -118,9 +130,8 @@ int main(int argc, char *argv[])
 		}
 		write(connfd, buf, strlen(buf));
 		
-
-		//send(connfd, msg, sizeof(msg), 0);
-
+		send(connfd, resp->str, sizeof(resp->str), 0);
+		g_string_free(resp, 1);
 		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
 	}
@@ -164,3 +175,11 @@ void createHashTable(GHashTable *hashTable, char *msg){
 	}
 	g_strfreev(header);
 }
+
+void buildHead(GString *resp){
+	g_string_append(resp, "<head>\n</head>\n");
+}
+void buildBooty(char resp[], char msg[], char *cli, unsigned short port, bool isGoods){
+	
+}
+	
