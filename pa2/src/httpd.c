@@ -25,6 +25,8 @@ void buildHeader(GString *headerResponse, gsize contentLen);
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
 void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, char port[], bool isGoods);
+void LogToFile(GString *resp, char msg[], struct sockaddr_in cli, char port[]);
+
 
 int main(int argc, char *argv[])
 {
@@ -38,7 +40,6 @@ int main(int argc, char *argv[])
 	char buf[BUFSIZE];
 	char msg[MESSAGESIZE];
 	//struct tm *timeZone = NULL;
-	FILE *logger;	
 	GHashTable *hashTable;
 
 	//Input is valid
@@ -136,7 +137,25 @@ int main(int argc, char *argv[])
 	}
 	return 0;
 }
+void LogToFile(GString *resp, char msg[], struct sockaddr_in client, char port[]){
+	
+	
+	char date[BUFSIZE];
+	char url[BUFSIZE];
+	getIsoDate(date);
+	char *clientIP = client.sin_addr;
 
+	FILE *logger = fopen("server.log", "a");
+
+	if(logger != NULL){
+		
+	}
+	else{
+		perror("File open error\n");
+		return;	
+	}	
+	
+}
 void buildHeader(GString *headerResponse, gsize contentLen){
 
 	char isodate[BUFSIZE];
