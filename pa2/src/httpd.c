@@ -19,9 +19,9 @@ const int MESSAGESIZE = 4096;
 
 
 //Helper functions
-void createHashTable(GHashTable *hashTable, char *msg);
+//void createHashTable(GHashTable *hashTable, char *msg);
 void buildHead(GString *resp);
-void buildBooty(char resp[], char msg[], char *cli, unsigned short port, bool isGoods);
+void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, char port[], bool isGoods);
 					
 
 int main(int argc, char *argv[])
@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
 	struct tm *timeZone = NULL;
 	FILE *logger;	
 	GHashTable *hashTable;
+
 	//Input is valid
 	if(argc != 2){
 		printf("[ERR] Invalid input: Must take only 1 parameter(portnumber) \n");
@@ -75,7 +76,6 @@ int main(int argc, char *argv[])
 	while(true){
 		socklen_t clientlen = (socklen_t) sizeof(client);
 		GString *resp = g_string_new("<!DOCTYPE html>\n<html>");
-
 	
 		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
 			//[explain_poll]Explains underlying cause of error in more detail
@@ -98,28 +98,27 @@ int main(int argc, char *argv[])
 		fprintf(stdout,"REVEEEVD \n%s\n", msg);
 		fflush(stdout);	
 	
-		//Get the client IP and port in human readable form
-		char *clientIP = inet_ntoa(client.sin_addr);
-		unsigned short cPort = ntohs(client.sin_port);
-
 		
 		if(g_str_has_prefix(msg, "GET")){
 			fprintf(stdout, "GETGETGET\n");
 			fflush(stdout);
 			buildHead(resp);
-			//buildBooty(resp, msg, clientIP, cPort, false);
+			buildBooty(resp, msg, client, argv[1], false);
 		}
 
 
 		//Initilize hash table 
-		hashTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+	//	hashTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 		
-		createHashTable(hashTable, msg);
+	//	createHashTable(hashTable, msg);
 		
 		//Start the clock
 		t = time(NULL);
 		timeZone = localtime(&t);
-	
+
+		//Get the client IP and port in human readable form
+		char *clientIP = inet_ntoa(client.sin_addr);
+		unsigned short cPort = ntohs(client.sin_port);	
 		fprintf(stdout,"Client IP and port %s:%d\n", clientIP, cPort);	
 		fflush(stdout);
 		//Write out time in ISO 8601 format!
@@ -130,7 +129,7 @@ int main(int argc, char *argv[])
 		}
 		write(connfd, buf, strlen(buf));
 		
-		send(connfd, resp->str, sizeof(resp->str), 0);
+		write(connfd, resp->str, (size_t) resp->str);
 		g_string_free(resp, 1);
 		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
@@ -139,7 +138,7 @@ int main(int argc, char *argv[])
 }
 
 
-void createHashTable(GHashTable *hashTable, char *msg){
+/*void createHashTable(GHashTable *hashTable, char *msg){
 
 	//msg contains the string "\r\n" in the 
 	//end of every line we need to cut that out
@@ -174,12 +173,31 @@ void createHashTable(GHashTable *hashTable, char *msg){
 		}
 	}
 	g_strfreev(header);
-}
+}*/
 
 void buildHead(GString *resp){
 	g_string_append(resp, "<head>\n</head>\n");
 }
-void buildBooty(char resp[], char msg[], char *cli, unsigned short port, bool isGoods){
+void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[], bool isGoods){
+	g_string_append(resp, "http://");
+	gchar **splitter = g_strsplit(msg, ": ", -1);
+	//strips away leading and trailing whitespace from string
+	g_string_append(resp, g_strstrip(splitter[1]));
+	g_string_append(resp, " ");
+	g_string_append(resp, inet_ntoa(client.sin_addr));
+	g_string_append(resp, ":");
+	g_string_append(resp, port);
+	g_string_append(resp, "\n");
+
+	//If it includes goods make dat gooshiii
 	
+	g_string_append(resp, "<body>");
+	g_string_append(resp, "\n");
+	g_string_append(resp, "BIG BUTT\n");
+	g_string_append(resp, "</body>");
+	g_string_append(resp, "\n");
+	
+	g_strfreev(splitter);
 }
+
 	
