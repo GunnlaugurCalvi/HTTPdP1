@@ -118,9 +118,6 @@ int main(int argc, char *argv[])
 		fflush(stdout);
 		
 		
-		//getIsoDate(buf);
-	
-		
 		write(connfd, buf, strlen(buf));
 
 		conLen = resp->allocated_len;
@@ -134,8 +131,6 @@ int main(int argc, char *argv[])
 		g_string_free(resp, 1);
 		g_string_free(headerResponse, 1);	
 	
-
-
 		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
 	}
@@ -148,14 +143,16 @@ void buildHeader(GString *headerResponse, gsize contentLen){
 	char unBuf[10];
 	//Write out time in ISO 8601 format!
 	getIsoDate(isodate);
+	g_string_append(headerResponse, "Content-Type: text/html; charset=utf-8\r\n");
 	g_string_append(headerResponse, "Date: ");
 	g_string_append(headerResponse, isodate);
 	g_string_append(headerResponse, "\r\n");
+	g_string_append(headerResponse, "Connection: keep-alive\r\n");
+	g_string_append(headerResponse, "Keep-Alive: timeout=30, max=100\r\n");
 	g_string_append(headerResponse, "Content-Length: ");
 	sprintf(unBuf, "%u", contentLen);
 	g_string_append(headerResponse, unBuf);
-	g_string_append(headerResponse, "\r\n");
-	g_string_append(headerResponse, "Content-Type: text/html\r\n\r\n");
+	g_string_append(headerResponse, "\r\n\r\n");
 
 }
 
@@ -166,7 +163,7 @@ void getIsoDate(char *buf){
 	timeZone = localtime(&t);
 
 	//Could not use the g_time_val_to_iso8601() because it is in version 2.12
-	if(strftime(buf, BUFSIZE,"%FT%T\n", timeZone) == 0){
+	if(strftime(buf, BUFSIZE,"%FT%T", timeZone) == 0){
 		fprintf(stderr, "Strftime error\n");
 		exit(EXIT_FAILURE);
 	}
