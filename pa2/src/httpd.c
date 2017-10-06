@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 	
 	while(true){
 		socklen_t clientlen = (socklen_t) sizeof(client);
-		GString *resp = g_string_new("<!DOCTYPE html>\n<html>");
+		GString *resp = g_string_new("<!DOCTYPE html>\r\n<html>\r\n");
 		GString *headerResponse = g_string_new("HTTP/1.1 200 OK\r\n");
 		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
 			//[explain_poll]Explains underlying cause of error in more detail
@@ -178,13 +178,13 @@ void getIsoDate(char *buf){
 	}
 }
 void buildHead(GString *resp){
-	g_string_append(resp, "<head>\n YALL FINISHED OR YALL DONE \n</head>\n");
+	g_string_append(resp, "<head>\r\n YALL FINISHED OR YALL DONE \n</head>\r\n");
 }
 void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[], bool isGoods){
 
 
 	g_string_append(resp, "<body>");
-	g_string_append(resp , "\n");
+	g_string_append(resp , "\r\n");
 	g_string_append(resp, "http://");
 	gchar **splitter = g_strsplit(msg, ": ", -1);
 	
@@ -201,8 +201,8 @@ void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[
 	
 	g_string_append(resp, "\n");
 	g_string_append(resp, "BIG BUTT\n");
-	g_string_append(resp, "</body>\n</html>");
-	g_string_append(resp, "\n");
+	g_string_append(resp, "</body>\r\n</html>");
+	g_string_append(resp, "\r\n");
 	
 	g_strfreev(splitter);
 }
