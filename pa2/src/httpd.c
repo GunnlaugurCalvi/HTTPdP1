@@ -13,19 +13,28 @@
 #include <glib.h>
 #include <poll.h>
 //#include <libexplain/poll.h> would be beautiful if this would work
+
+const gint BUFSIZE = 1024;
+const int MESSAGESIZE = 4096;
+
+
+//Helper functions
+void createHashTable(GHashTable *hashTable, char *msg);
+
 int main(int argc, char *argv[])
 {
 	//Initialize and declare variables
-	int sock = 0, connfd = 0;
-	int portNumber;
-	ssize_t val;
+	gint sock = 0, connfd = 0;
+	gint portNumber, val;
 	struct sockaddr_in server, client;
-	struct pollfd fd;
-	int timeout_msecs = 500;
-	char buf[1025];
+	struct pollfd fds;
+	gint timeout_msecs = 500;
+	char buf[BUFSIZE];
+	char msg[MESSAGESIZE];
 	time_t t;
 	struct tm *timeZone = NULL;
-	
+	FILE *logger;	
+	GHashTable *hashTable;
 	//Input is valid
 	if(argc != 2){
 		printf("[ERR] Invalid input: Must take only 1 parameter(portnumber) \n");
@@ -43,8 +52,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	//Allocate memory for the server and buffer
-	memset(&server, '0', sizeof(server));
-	memset(buf, '0', sizeof(buf));
+	memset(&server, 0, sizeof(server));
 
 	server.sin_family = AF_INET;			//WE ARE FAM ILY
 	server.sin_addr.s_addr = htonl(INADDR_ANY);	//Long integer -> Network byte order
@@ -63,17 +71,36 @@ int main(int argc, char *argv[])
 	
 	while(true){
 		socklen_t clientlen = (socklen_t) sizeof(client);
-		//Acceppt connection on socket, no restrictions
-		if((val = poll(&fd, sock, timeout_msecs) < 0)){
+		
+		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
 			//[explain_poll]Explains underlying cause of error in more detail
 			//fprintf(stderr, "%s\n", explain_poll(&fd, sock, timeout_msecs));
 			perror("Poll error\n");
 			exit(EXIT_FAILURE);
-		}
-		if((connfd = accept(sock, (struct sockaddr*) &client, &clientlen) < 0)){
+		}*/
+	
+		//Accept connection on socket, no restrictions
+		if((connfd = accept(sock, (struct sockaddr*) &client, &clientlen)) < 0){
 			perror("Accept error\n");
 			exit(EXIT_FAILURE);	
 		}
+		//Recieve message
+		if((val = recv(connfd, msg, sizeof(msg)-1, 0)) < 0){
+			perror("Recv error\n");
+			exit(EXIT_FAILURE);
+		}
+		
+		fprintf(stdout,"REVEEEVD \n%s\n", msg);
+		fflush(stdout);	
+		
+
+
+
+		//Initilize hash table 
+		hashTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		
+		createHashTable(hashTable, msg);
+		
 		//Start the clock
 		t = time(NULL);
 		timeZone = localtime(&t);
@@ -91,8 +118,49 @@ int main(int argc, char *argv[])
 		}
 		write(connfd, buf, strlen(buf));
 		
+
+		//send(connfd, msg, sizeof(msg), 0);
+
 		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
 	}
 	return 0;
+}
+
+
+void createHashTable(GHashTable *hashTable, char *msg){
+
+	//msg contains the string "\r\n" in the 
+	//end of every line we need to cut that out
+	
+	gchar **header = g_strsplit(msg, "\r\n", -1);
+	gchar **copyHeader = NULL;
+	int counter;
+	bool containsGoods = false;
+	
+ 	for(counter = 0; header[counter] != '\0'; counter++){
+		if(!g_strcmp0(header[counter], "")){
+			containsGoods = true;
+			continue;
+		}
+		else if(containsGoods == true){
+			g_hash_table_insert(hashTable, g_strdup("Goods"), g_strndup(header[counter], strlen(header[counter])));
+		}
+		else{
+			copyHeader = !counter ? g_strsplit(header[counter], " ", -1) : g_strsplit(header[counter], ": ", 2);
+
+			if(copyHeader != NULL && copyHeader[0] != NULL && copyHeader[1] != NULL){
+				if(!counter){
+					g_hash_table_insert(hashTable, g_strdup("req-type"), g_strndup(copyHeader[0], strlen(copyHeader[0])));
+
+					g_hash_table_insert(hashTable, g_strdup("url"), g_ascii_strdown(copyHeader[1], strlen(copyHeader[1])));
+				}
+				else{
+					g_hash_table_insert(hashTable, g_ascii_strdown(copyHeader[0], strlen(copyHeader[0])), g_ascii_strdown(copyHeader[1], strlen(copyHeader[1])));
+				}
+			}
+			g_strfreev(copyHeader);
+		}
+	}
+	g_strfreev(header);
 }
