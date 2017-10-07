@@ -25,7 +25,7 @@ void buildHeader(GString *headerResponse, gsize contentLen);
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
 void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, char port[], bool isGoods);
-//void LogToFile(GString *resp, char msg[], struct sockaddr_in cli);
+void LogToFile(GString *resp, char msg[], struct sockaddr_in cli);
 
 
 int main(int argc, char *argv[])
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 		if(g_str_has_prefix(msg, "GET")){
 			buildHead(resp);
 			buildBooty(resp, msg, client, argv[1], false);
-			//LogToFile(resp, msg, client);
+			LogToFile(resp, msg, client);
 		}
 		else{
 			perror("Bad Request\n");
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
 	close(sock);
 	return 0;
 }
-/*void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
+void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	
 	
 	char date[BUFSIZE];
@@ -148,10 +148,9 @@ int main(int argc, char *argv[])
 	char *clientIP = inet_ntoa(client.sin_addr);
 	unsigned short clientPort = ntohs(client.sin_port);
 	GString *requestMethod = g_string_new("");
-	GString *requestURL = g_string_new("http://");
-	
-	gchar **splitter = g_strsplit(msg, ": ", -1);
-	g_string_append(requestURL, splitter[2]);
+	GString *requestURL = g_string_new("http://");	
+	gchar **splitter = g_strsplit(msg, ":", -1);
+	g_string_append(requestURL, g_strstrip(splitter[2]));
 
 	if(g_str_has_prefix(msg, "GET")){
 		g_string_append(requestMethod, "GET");
@@ -176,7 +175,7 @@ int main(int argc, char *argv[])
 	g_strfreev(splitter);	
 	g_string_free(requestMethod, 1);
 	g_string_free(requestURL, 1);	
-}*/
+}
 void buildHeader(GString *headerResponse, gsize contentLen){
 
 	char isodate[BUFSIZE];
