@@ -208,23 +208,31 @@ void getIsoDate(char *buf){
 	}
 }
 void buildHead(GString *resp){
-	g_string_append(resp, "<head>\r\n YALL FINISHED OR YALL DONE \n</head>\r\n");
+	g_string_append(resp, "<head>\r\n");
+	g_string_append(resp, "<title> GINA IS NOT APACHE</title>\r\n");
+	g_string_append(resp, "\n</head>\r\n");
 }
 void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[], bool isGoods){
 
-
+	//Convert the client port number to string so we can append 
+	//to our GString
+	gchar *cPort = g_strdup_printf("%i", ntohs(client.sin_port));
+	
 	g_string_append(resp, "<body>");
 	g_string_append(resp , "\r\n");
 	g_string_append(resp, "http://");
-	gchar **splitter = g_strsplit(msg, ": ", -1);
+	gchar **splitter = g_strsplit(msg, ":", -1);
+	gchar **urlSplitter = g_strsplit(msg, " ", -1);
 	
 	//strips away leading and trailing whitespace from string
 	g_string_append(resp, g_strstrip(splitter[1]));
-	
+	//Get the requested site (f.x /index)
+	g_string_append(resp, urlSplitter[1]);
+
 	g_string_append(resp, " ");
 	g_string_append(resp, inet_ntoa(client.sin_addr));
 	g_string_append(resp, ":");
-	g_string_append(resp, port);
+	g_string_append(resp, cPort);
 	g_string_append(resp, "\n");
 
 	//If it includes goods make dat gooshiii
@@ -235,6 +243,7 @@ void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[
 	g_string_append(resp, "\r\n");
 	
 	g_strfreev(splitter);
+	g_strfreev(urlSplitter);
 }
 
 /*void createHashTable(GHashTable *hashTable, char *msg){
