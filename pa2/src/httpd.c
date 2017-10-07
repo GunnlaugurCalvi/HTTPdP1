@@ -24,9 +24,9 @@ const int MESSAGESIZE = 4096;
 void buildHeader(GString *headerResponse, gsize contentLen);			
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
-void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, char port[], bool isGoods);
+void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, bool isGoods);
 void LogToFile(GString *resp, char msg[], struct sockaddr_in cli);
-
+void getData(GString *resp, char msg[]);
 
 int main(int argc, char *argv[])
 {
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 	}
 	//Listen to the socket, allow queue of maximum 1
-	if(listen(sock, 10) < 0){
+	if(listen(sock, 1) < 0){
 		perror("Listen error\n");
 		exit(EXIT_FAILURE);		
 	}
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 		
 		if(g_str_has_prefix(msg, "GET")){
 			buildHead(resp);
-			buildBooty(resp, msg, client, argv[1], false);
+			buildBooty(resp, msg, client, false);
 			
 			conLen = resp->len;
 			buildHeader(headerResponse, conLen);
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 		}
 		else if(g_str_has_prefix(msg, "POST")){
 			buildHead(resp);
-			buildBooty(resp, msg, client, argv[1], true);
+			buildBooty(resp, msg, client,true);
 			conLen = resp->len;
 			buildHeader(headerResponse, conLen);
 			LogToFile(resp, msg, client);			
@@ -168,8 +168,8 @@ void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	if(g_str_has_prefix(msg, "GET")){
 		g_string_append(requestMethod, "GET");
 	}
-	else if(g_str_has_prefix(msg, "PUT")){
-		g_string_append(requestMethod, "PUT");
+	else if(g_str_has_prefix(msg, "POST")){
+		g_string_append(requestMethod, "POST");
 	}
 	else{
 		g_string_append(requestMethod, "HEAD");
@@ -225,7 +225,7 @@ void buildHead(GString *resp){
 	g_string_append(resp, "<title> GINA IS NOT APACHE</title>\r\n");
 	g_string_append(resp, "\n</head>\r\n");
 }
-void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[], bool isGoods){
+void buildBooty(GString *resp, char msg[], struct sockaddr_in client, bool isGoods){
 
 	//Convert the client port number to string so we can append 
 	//to our GString
@@ -252,17 +252,36 @@ void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[
 	g_string_append(resp, cPort);
 	g_string_append(resp, "\n");
 
-	//If it includes goods make dat gooshiii
+	if(isGoods == true){
+		getData(resp, msg);	
 	
+	}	
 	g_string_append(resp, "\n");
 	g_string_append(resp, "</body>\r\n</html>");
 	g_string_append(resp, "\r\n");
 	
+	g_free(cPort);
 	g_strfreev(splitter);
 	g_strfreev(url);
 	g_strfreev(urlSplitter);
 }
 
+void getData(GString *resp, char msg[]){
+	
+	gchar **data = g_strsplit(msg, "\r\n\r\n", -1);
+	gchar **dataSplitter = g_strsplit(msg, "Content-Length: ", -1);
+	gchar **dataSize = g_strsplit(dataSplitter[1], "\n", 0);
+	
+	if(data[1] == NULL){
+		return;
+	}
+	g_string_append(resp, data[1]);
+	g_string_append(resp, "\n");
+
+	g_strfreev(data);
+	g_strfreev(dataSplitter);
+	g_strfreev(dataSize);
+}
 /*void createHashTable(GHashTable *hashTable, char *msg){
 
 	//msg contains the string "\r\n" in the 
