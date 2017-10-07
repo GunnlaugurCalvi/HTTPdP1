@@ -101,6 +101,23 @@ int main(int argc, char *argv[])
 		if(g_str_has_prefix(msg, "GET")){
 			buildHead(resp);
 			buildBooty(resp, msg, client, argv[1], false);
+			
+			conLen = resp->len;
+			buildHeader(headerResponse, conLen);
+
+			LogToFile(resp, msg, client);
+		}
+		else if(g_str_has_prefix(msg, "POST")){
+			buildHead(resp);
+			buildBooty(resp, msg, client, argv[1], true);
+			conLen = resp->len;
+			buildHeader(headerResponse, conLen);
+			LogToFile(resp, msg, client);			
+		}
+		else if(g_str_has_prefix(msg, "HEAD")){
+	
+			conLen = resp->len;
+			buildHeader(headerResponse, conLen);
 			LogToFile(resp, msg, client);
 		}
 		else{
@@ -108,11 +125,12 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 
-
-		//Initilize hash table 
-	//	hashTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		g_string_append(headerResponse, resp->str);
 		
-	//	createHashTable(hashTable, msg);
+		//Initilize hash table 
+		//	hashTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		
+		//	createHashTable(hashTable, msg);
 		
 		//Get the client IP and port in human readable form
 		char *clientIP = inet_ntoa(client.sin_addr);
@@ -123,11 +141,6 @@ int main(int argc, char *argv[])
 		
 		write(connfd, buf, strlen(buf));
 
-		conLen = resp->len;
-
-		buildHeader(headerResponse, conLen);
-
-		g_string_append(headerResponse, resp->str);
 
 		write(connfd, headerResponse->str, headerResponse->len);
 		
@@ -221,11 +234,15 @@ void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[
 	g_string_append(resp, "<body>");
 	g_string_append(resp , "\r\n");
 	g_string_append(resp, "http://");
-	gchar **splitter = g_strsplit(msg, ":", -1);
+	
+	//Split the request to get our host link
+	gchar **splitter = g_strsplit(msg, "Host: ", -1);
+	gchar **url = g_strsplit(splitter[1], "\n", -1);
+
 	gchar **urlSplitter = g_strsplit(msg, " ", -1);
 	
 	//strips away leading and trailing whitespace from string
-	g_string_append(resp, g_strstrip(splitter[1]));
+	g_string_append(resp, g_strstrip(url[0]));
 	//Get the requested site (f.x /index)
 	g_string_append(resp, urlSplitter[1]);
 
@@ -238,11 +255,11 @@ void buildBooty(GString *resp, char msg[], struct sockaddr_in client, char port[
 	//If it includes goods make dat gooshiii
 	
 	g_string_append(resp, "\n");
-	g_string_append(resp, "BIG BUTT\n");
 	g_string_append(resp, "</body>\r\n</html>");
 	g_string_append(resp, "\r\n");
 	
 	g_strfreev(splitter);
+	g_strfreev(url);
 	g_strfreev(urlSplitter);
 }
 
