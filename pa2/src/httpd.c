@@ -27,11 +27,11 @@ const int MESSAGESIZE = 4096;
 //Helper functions
 //void createHashTable(GHashTable *hashTable, char *msg);
 
-void buildHeader(GString *headerResponse, char msg[], gsize contentLen);			
+void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client);		
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
 void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, bool isGoods);
-void LogToFile(GString *resp, char msg[], struct sockaddr_in cli);
+void LogToFile(char msg[], struct sockaddr_in cli, gchar *respondCode);
 void getData(GString *resp, char msg[]);
 
 
@@ -111,22 +111,22 @@ int main(int argc, char *argv[])
 			buildBooty(resp, msg, client, false);
 			
 			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen);
+			buildHeader(headerResponse, msg, conLen, client);
 
-			LogToFile(resp, msg, client);
+			LogToFile(msg, client, OK);
 		}
 		else if(g_str_has_prefix(msg, "POST")){
 			buildHead(resp);
 			buildBooty(resp, msg, client,true);
 			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen);
-			LogToFile(resp, msg, client);			
+			buildHeader(headerResponse, msg, conLen, client);
+			LogToFile(msg, client, CREATED);			
 		}
 		else if(g_str_has_prefix(msg, "HEAD")){
 	
 			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen);
-			LogToFile(resp, msg, client);
+			buildHeader(headerResponse, msg, conLen, client);
+			LogToFile(msg, client, OK);
 		}
 		else{
 			perror("Bad Request\n");
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
+void LogToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 	
 	
 	char date[BUFSIZE];
@@ -170,9 +170,15 @@ void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	char *clientIP = inet_ntoa(client.sin_addr);
 	unsigned short clientPort = ntohs(client.sin_port);
 	GString *requestMethod = g_string_new("");
+	
 	GString *requestURL = g_string_new("http://");	
-	gchar **splitter = g_strsplit(msg, ":", -1);
-	g_string_append(requestURL, g_strstrip(splitter[2]));
+	gchar **splitter = g_strsplit(msg, "Host: ", -1);
+	gchar **url = g_strsplit(splitter[1], "\n", -1);
+	gchar **urlSplitter = g_strsplit(msg, " ", -1);
+
+	g_string_append(requestURL, g_strstrip(url[0]));
+
+	g_string_append(requestURL, g_strstrip(urlSplitter[1]));
 
 	if(g_str_has_prefix(msg, "GET")){
 		g_string_append(requestMethod, "GET");
@@ -187,7 +193,7 @@ void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	FILE *logger = fopen("server.log", "a");
 
 	if(logger != NULL){
-		fprintf(logger, "<%s>:<%s> <%d> <%s> <%s>:<200 OK>\n", date, clientIP, clientPort, requestMethod->str, requestURL->str);
+		fprintf(logger, "<%s> : %s:%d <%s> <%s>:<%s>\n", date, clientIP, clientPort, requestMethod->str, requestURL->str, respondCode);
 	fclose(logger);
 	}
 	else{
@@ -196,9 +202,11 @@ void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	}
 	g_strfreev(splitter);	
 	g_string_free(requestMethod, 1);
-	g_string_free(requestURL, 1);	
+	g_string_free(requestURL, 1);
+	g_strfreev(url);
+	g_strfreev(urlSplitter);	
 }
-void buildHeader(GString *headerResponse, char msg[], gsize contentLen){
+void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client){
 	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
 	gchar **testy = g_strsplit(HTTPsplitter[2], "\n", -1);
 
@@ -212,6 +220,7 @@ void buildHeader(GString *headerResponse, char msg[], gsize contentLen){
 		g_string_append(headerResponse, "HTTP/1.0 ");
 		g_string_append(headerResponse, HTTP_VERSION_NOT_SUPPORTED);
 		g_string_append(headerResponse, "\r\n");
+		LogToFile(msg, client, HTTP_VERSION_NOT_SUPPORTED);
 	}
 	
 	char isodate[BUFSIZE];
