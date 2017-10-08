@@ -21,12 +21,13 @@ const int MESSAGESIZE = 4096;
 //Helper functions
 //void createHashTable(GHashTable *hashTable, char *msg);
 
-void buildHeader(GString *headerResponse, gsize contentLen);			
+void buildHeader(GString *headerResponse, char msg[], gsize contentLen);			
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
 void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, bool isGoods);
 void LogToFile(GString *resp, char msg[], struct sockaddr_in cli);
 void getData(GString *resp, char msg[]);
+
 
 int main(int argc, char *argv[])
 {
@@ -79,7 +80,8 @@ int main(int argc, char *argv[])
 		connfd = 0;
 		socklen_t clientlen = (socklen_t) sizeof(client);
 		GString *resp = g_string_new("<!DOCTYPE html>\r\n<html>\r\n");
-		GString *headerResponse = g_string_new("HTTP/1.1 200 OK\r\n");
+		GString *headerResponse = g_string_new(NULL);
+
 		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
 			//[explain_poll]Explains underlying cause of error in more detail
 			//fprintf(stderr, "%s\n", explain_poll(&fd, sock, timeout_msecs));
@@ -97,13 +99,13 @@ int main(int argc, char *argv[])
 			perror("Recv error\n");
 			exit(EXIT_FAILURE);
 		}
-		
+
 		if(g_str_has_prefix(msg, "GET")){
 			buildHead(resp);
 			buildBooty(resp, msg, client, false);
 			
 			conLen = resp->len;
-			buildHeader(headerResponse, conLen);
+			buildHeader(headerResponse, msg, conLen);
 
 			LogToFile(resp, msg, client);
 		}
@@ -111,13 +113,13 @@ int main(int argc, char *argv[])
 			buildHead(resp);
 			buildBooty(resp, msg, client,true);
 			conLen = resp->len;
-			buildHeader(headerResponse, conLen);
+			buildHeader(headerResponse, msg, conLen);
 			LogToFile(resp, msg, client);			
 		}
 		else if(g_str_has_prefix(msg, "HEAD")){
 	
 			conLen = resp->len;
-			buildHeader(headerResponse, conLen);
+			buildHeader(headerResponse, msg, conLen);
 			LogToFile(resp, msg, client);
 		}
 		else{
@@ -153,6 +155,17 @@ int main(int argc, char *argv[])
 	close(sock);
 	return 0;
 }
+/*void getHTTP(GString *headerResponse, char msg[]){
+	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
+	gchar **testy = g_strsplit(HTTPsplitter[2], "\n", -1);
+
+	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
+		g_string_append(headerResponse, "HTTP/1.1 200 OK\r\n");
+	}
+	else{
+		g_string_append(headerResponse, "HTTP/1.0 200 OK\r\n");
+	}
+}*/
 void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	
 	
@@ -189,8 +202,16 @@ void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	g_string_free(requestMethod, 1);
 	g_string_free(requestURL, 1);	
 }
-void buildHeader(GString *headerResponse, gsize contentLen){
+void buildHeader(GString *headerResponse, char msg[], gsize contentLen){
+	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
+	gchar **testy = g_strsplit(HTTPsplitter[2], "\n", -1);
 
+	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
+		g_string_append(headerResponse, "HTTP/1.1 200 OK\r\n");
+	}
+	else{
+		g_string_append(headerResponse, "HTTP/1.0 200 OK\r\n");
+	}
 	char isodate[BUFSIZE];
 	char unBuf[10];
 	//Write out time in ISO 8601 format!
@@ -199,8 +220,13 @@ void buildHeader(GString *headerResponse, gsize contentLen){
 	g_string_append(headerResponse, "Date: ");
 	g_string_append(headerResponse, isodate);
 	g_string_append(headerResponse, "\r\n");
-	g_string_append(headerResponse, "Connection: keep-alive\r\n");
-	g_string_append(headerResponse, "Keep-Alive: timeout=30, max=100\r\n");
+	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
+		g_string_append(headerResponse, "Connection: keep-alive\r\n");
+		g_string_append(headerResponse, "Keep-Alive: timeout=30, max=100\r\n");
+	}
+	else{
+		g_string_append(headerResponse, "Connection: close\r\n");
+	}
 	g_string_append(headerResponse, "Content-Length: ");
 	sprintf(unBuf, "%u", contentLen);
 	g_string_append(headerResponse, unBuf);
