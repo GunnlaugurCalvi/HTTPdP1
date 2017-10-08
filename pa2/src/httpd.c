@@ -14,6 +14,12 @@
 #include <poll.h>
 //#include <libexplain/poll.h> would be beautiful if this would work
 
+#define OK "200 OK"
+#define CREATED "201 Created"
+#define METHOD_NOT_ALLOWED "405 Method Not Allowed"
+#define HTTP_VERSION_NOT_SUPPORTED "505 HTTP Version not supported"
+
+
 const gint BUFSIZE = 1024;
 const int MESSAGESIZE = 4096;
 
@@ -155,17 +161,7 @@ int main(int argc, char *argv[])
 	close(sock);
 	return 0;
 }
-/*void getHTTP(GString *headerResponse, char msg[]){
-	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
-	gchar **testy = g_strsplit(HTTPsplitter[2], "\n", -1);
 
-	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
-		g_string_append(headerResponse, "HTTP/1.1 200 OK\r\n");
-	}
-	else{
-		g_string_append(headerResponse, "HTTP/1.0 200 OK\r\n");
-	}
-}*/
 void LogToFile(GString *resp, char msg[], struct sockaddr_in client){
 	
 	
@@ -209,9 +205,15 @@ void buildHeader(GString *headerResponse, char msg[], gsize contentLen){
 	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
 		g_string_append(headerResponse, "HTTP/1.1 200 OK\r\n");
 	}
-	else{
+	else if(g_str_has_prefix(testy[0], "HTTP/1.0")){
 		g_string_append(headerResponse, "HTTP/1.0 200 OK\r\n");
 	}
+	else{
+		g_string_append(headerResponse, "HTTP/1.0 ");
+		g_string_append(headerResponse, HTTP_VERSION_NOT_SUPPORTED);
+		g_string_append(headerResponse, "\r\n");
+	}
+	
 	char isodate[BUFSIZE];
 	char unBuf[10];
 	//Write out time in ISO 8601 format!
