@@ -42,12 +42,12 @@ int main(int argc, char *argv[])
 	gint portNumber, val;
 	gsize conLen;
 	struct sockaddr_in server, client;
-	struct pollfd fds;
+	//struct pollfd fds;
 	gint timeout_msecs = 500;
 	char buf[BUFSIZE];
 	char msg[MESSAGESIZE];
 	//struct tm *timeZone = NULL;
-	GHashTable *hashTable;
+	//GHashTable *hashTable;
 
 	//Input is valid
 	if(argc != 2){
@@ -154,7 +154,6 @@ int main(int argc, char *argv[])
 		
 		g_string_free(resp, 1);
 		g_string_free(headerResponse, 1);	
-	
 		shutdown(connfd, SHUT_RDWR);
 		close(connfd);
 	}
@@ -243,6 +242,8 @@ void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct s
 	g_string_append(headerResponse, unBuf);
 	g_string_append(headerResponse, "\r\n\r\n");
 
+	g_strfreev(HTTPsplitter);
+	g_strfreev(testy);
 }
 
 void getIsoDate(char *buf){
