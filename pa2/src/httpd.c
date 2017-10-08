@@ -27,7 +27,7 @@ const int MESSAGESIZE = 4096;
 //Helper functions
 //void createHashTable(GHashTable *hashTable, char *msg);
 
-void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client);		
+void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode);		
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
 void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, bool isGoods);
@@ -46,7 +46,6 @@ int main(int argc, char *argv[])
 	gint timeout_msecs = 500;
 	char buf[BUFSIZE];
 	char msg[MESSAGESIZE];
-	//struct tm *timeZone = NULL;
 	//GHashTable *hashTable;
 
 	//Input is valid
@@ -85,7 +84,7 @@ int main(int argc, char *argv[])
 	while(true){
 		connfd = 0;
 		socklen_t clientlen = (socklen_t) sizeof(client);
-		GString *resp = g_string_new("<!DOCTYPE html>\r\n<html>\r\n");
+		GString *resp = g_string_new(NULL);
 		GString *headerResponse = g_string_new(NULL);
 
 		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
@@ -111,7 +110,7 @@ int main(int argc, char *argv[])
 			buildBooty(resp, msg, client, false);
 			
 			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen, client);
+			buildHeader(headerResponse, msg, conLen, client, OK);
 
 			LogToFile(msg, client, OK);
 		}
@@ -119,18 +118,19 @@ int main(int argc, char *argv[])
 			buildHead(resp);
 			buildBooty(resp, msg, client,true);
 			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen, client);
+			buildHeader(headerResponse, msg, conLen, client, CREATED);
 			LogToFile(msg, client, CREATED);			
 		}
 		else if(g_str_has_prefix(msg, "HEAD")){
 	
 			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen, client);
+			buildHeader(headerResponse, msg, conLen, client, OK);
 			LogToFile(msg, client, OK);
 		}
 		else{
-			perror("Bad Request\n");
-			exit(EXIT_FAILURE);
+			conLen = resp->len;
+			buildHeader(headerResponse, msg, conLen, client, METHOD_NOT_ALLOWED);
+			LogToFile(msg, client, METHOD_NOT_ALLOWED);
 		}
 
 		g_string_append(headerResponse, resp->str);
@@ -205,15 +205,19 @@ void LogToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 	g_strfreev(url);
 	g_strfreev(urlSplitter);	
 }
-void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client){
+void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode){
 	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
 	gchar **testy = g_strsplit(HTTPsplitter[2], "\n", -1);
 
 	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
-		g_string_append(headerResponse, "HTTP/1.1 200 OK\r\n");
+		g_string_append(headerResponse, "HTTP/1.1 ");
+		g_string_append(headerResponse, respondCode);
+		g_string_append(headerResponse, "\r\n");
 	}
 	else if(g_str_has_prefix(testy[0], "HTTP/1.0")){
-		g_string_append(headerResponse, "HTTP/1.0 200 OK\r\n");
+		g_string_append(headerResponse, "HTTP/1.0 ");
+		g_string_append(headerResponse, respondCode);
+		g_string_append(headerResponse, "\r\n");
 	}
 	else{
 		g_string_append(headerResponse, "HTTP/1.0 ");
@@ -259,6 +263,7 @@ void getIsoDate(char *buf){
 	}
 }
 void buildHead(GString *resp){
+	g_string_append(resp, "<!DOCTYPE html>\r\n<html>\r\n");
 	g_string_append(resp, "<head>\r\n");
 	g_string_append(resp, "<title> GINA IS NOT APACHE</title>\r\n");
 	g_string_append(resp, "\n</head>\r\n");
