@@ -14,7 +14,6 @@
 #include <glib.h>
 #include <poll.h>
 #include <errno.h>
-//#include <libexplain/poll.h> would be beautiful if this would work
 
 #define OK "200 OK"
 #define CREATED "201 Created"
@@ -205,7 +204,7 @@ int main(int argc, char *argv[])
 					}
 					else if(g_str_has_prefix(msg, "POST")){
 						buildHead(resp);
-						buildBody(resp, msg, client,true);
+						buildBody(resp, msg, client, true);
 						conLen = resp->len;
 						buildResponse(headerResponse, msg, conLen, client, CREATED);
 						logToFile(msg, client, CREATED);			
@@ -242,12 +241,15 @@ int main(int argc, char *argv[])
 						break;
 					}	
 				}
+				//Closes all broken connections 
 				if(triggerClose){		
 					shutdown(fds[i].fd, SHUT_RDWR);
 					close(fds[i].fd);
 					fds[i].fd = -1;
 					freeNfds = true;
 				}
+				//Removes finished connections and frees space
+				//for more connections in the fd array
 				if(freeNfds){
 					freeNfds = false;
 					for(i = 0; i < nfds; i++){
@@ -261,10 +263,10 @@ int main(int argc, char *argv[])
 				}
 			}
 		}
-		
 		g_string_free(resp, 1);
 		g_string_free(headerResponse, 1);	
 	}
+	//Closes finished connections
 	for(i = 0; i < nfds; i++){
 		if(fds[i].fd >= 0){
 			shutdown(fds[i].fd, SHUT_RDWR);
@@ -273,7 +275,6 @@ int main(int argc, char *argv[])
 	}
 	return 0;
 }
-
 //Here we log all requests the server gets to a server.log
 void logToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 	
@@ -307,7 +308,7 @@ void logToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 
 	if(logger != NULL){
 		fprintf(logger, "<%s> : %s:%d <%s> <%s>:<%s>\n", date, clientIP, clientPort, requestMethod->str, requestURL->str, respondCode);
-	fclose(logger);
+		fclose(logger);
 	}
 	else{
 		perror("File open error\n");
@@ -342,7 +343,7 @@ void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct
 	}
 	
 	char isodate[BUFSIZE];
-	char unBuf[10];
+	char gsizeToUnsigned[10];
 	//Write out time in ISO 8601 format!
 	getIsoDate(isodate);
 	g_string_append(headerResponse, "Content-Type: text/html; charset=utf-8\r\n");
@@ -357,8 +358,8 @@ void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct
 		g_string_append(headerResponse, "Connection: close\r\n");
 	}
 	g_string_append(headerResponse, "Content-Length: ");
-	sprintf(unBuf, "%u", contentLen);
-	g_string_append(headerResponse, unBuf);
+	sprintf(gsizeToUnsigned, "%u", contentLen);
+	g_string_append(headerResponse, gsizeToUnsigned);
 	g_string_append(headerResponse, "\r\n\r\n");
 
 	g_strfreev(HTTPsplitter);
@@ -371,18 +372,19 @@ void getIsoDate(char *buf){
 	time_t t = time(&t);
 	timeZone = localtime(&t);
 
-	//Could not use the g_time_val_to_iso8601() because it is in version 2.12
 	if(strftime(buf, BUFSIZE,"%FT%T", timeZone) == 0){
 		fprintf(stderr, "Strftime error\n");
 		exit(EXIT_FAILURE);
 	}
 }
+//Builds the HTML  head
 void buildHead(GString *resp){
 	g_string_append(resp, "<!DOCTYPE html>\r\n<html>\r\n");
 	g_string_append(resp, "<head>\r\n");
 	g_string_append(resp, "<title> GINA IS NOT APACHE</title>\r\n");
 	g_string_append(resp, "\n</head>\r\n");
 }
+//Builds the HTML body
 void buildBody(GString *resp, char msg[], struct sockaddr_in client, bool isGoods){
 
 	//Convert the client port number to string so we can append 
@@ -410,7 +412,7 @@ void buildBody(GString *resp, char msg[], struct sockaddr_in client, bool isGood
 	g_string_append(resp, cPort);
 	g_string_append(resp, "\n");
 
-	if(isGoods == true){
+	if(isGoods){
 		getData(resp, msg);	
 	
 	}	
@@ -423,7 +425,7 @@ void buildBody(GString *resp, char msg[], struct sockaddr_in client, bool isGood
 	g_strfreev(url);
 	g_strfreev(urlSplitter);
 }
-
+//Gets message body from POST request
 void getData(GString *resp, char msg[]){
 	
 	gchar **data = g_strsplit(msg, "\r\n\r\n", -1);
