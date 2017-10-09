@@ -23,19 +23,17 @@
 
 
 const gint BUFSIZE = 1024;
-const int MESSAGESIZE = 4096;
+const gint MESSAGESIZE = 4096;
 
 
 //Helper functions
-//void createHashTable(GHashTable *hashTable, char *msg);
-
 void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode);		
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
 void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, bool isGoods);
 void LogToFile(char msg[], struct sockaddr_in cli, gchar *respondCode);
 void getData(GString *resp, char msg[]);
-
+void closeConnection(struct pollfd fds, bool free);
 
 int main(int argc, char *argv[])
 {
@@ -49,8 +47,7 @@ int main(int argc, char *argv[])
 	gint timeout_msecs = 30000;
 	char buf[BUFSIZE];
 	char msg[MESSAGESIZE];
-	bool isClosed = false;
-	//GHashTable *hashTable;
+	bool isClosed = false, freeNfds = false;
 
 	//Input is valid
 	if(argc != 2){
@@ -101,7 +98,7 @@ int main(int argc, char *argv[])
 	
 
 	//Listen to the socket, allow queue of maximum 5
-	if((reuse = listen(sock, 5)) < 0){
+	if((reuse = listen(sock, 10)) < 0){
 		perror("Listen error\n");
 		close(sock);
 		exit(EXIT_FAILURE);		
@@ -246,8 +243,22 @@ int main(int argc, char *argv[])
 					}		
 				}
 				if(isClosed){		
+					shutdown(fds[i].fd, SHUT_RDWR);
 					close(fds[i].fd);
 					fds[i].fd = -1;
+					freeNfds = true;
+				}
+				int j;
+				if(freeNfds){
+					freeNfds = false;
+					for(i = 0; i < nfds; i++){
+						if(fds[i].fd == -1){
+							for(j = i; j < nfds; j++){
+								fds[j].fd = fds[j+1].fd;
+							}		
+							nfds -= 1;
+						}
+					}
 				}
 			}
 		}
@@ -428,41 +439,3 @@ void getData(GString *resp, char msg[]){
 	g_strfreev(dataSplitter);
 	g_strfreev(dataSize);
 }
-/*void createHashTable(GHashTable *hashTable, char *msg){
-
-	//msg contains the string "\r\n" in the 
-	//end of every line we need to cut that out
-	
-	gchar **header = g_strsplit(msg, "\r\n", -1);
-	gchar **copyHeader = NULL;
-	int counter;
-	bool containsGoods = false;
-	
- 	for(counter = 0; header[counter] != '\0'; counter++){
-		if(!g_strcmp0(header[counter], "")){
-			containsGoods = true;
-			continue;
-		}
-		else if(containsGoods == true){
-			g_hash_table_insert(hashTable, g_strdup("Goods"), g_strndup(header[counter], strlen(header[counter])));
-		}
-		else{
-			copyHeader = !counter ? g_strsplit(header[counter], " ", -1) : g_strsplit(header[counter], ": ", 2);
-
-			if(copyHeader != NULL && copyHeader[0] != NULL && copyHeader[1] != NULL){
-				if(!counter){
-					g_hash_table_insert(hashTable, g_strdup("req-type"), g_strndup(copyHeader[0], strlen(copyHeader[0])));
-
-					g_hash_table_insert(hashTable, g_strdup("url"), g_ascii_strdown(copyHeader[1], strlen(copyHeader[1])));
-				}
-				else{
-					g_hash_table_insert(hashTable, g_ascii_strdown(copyHeader[0], strlen(copyHeader[0])), g_ascii_strdown(copyHeader[1], strlen(copyHeader[1])));
-				}
-			}
-			g_strfreev(copyHeader);
-		}
-	}
-	g_strfreev(header);
-}*/
-
-
