@@ -18,7 +18,7 @@ Where the timestamp is in ISO 8601 format, precise up to seconds, "client IP" an
 # IMPLEMENTATION
 
 We implemented the server to allow 3 types of request from clients: GET, POST and HEAD.
-The server can handle up to x parallel connections, which can be persistent and kept-alive if the client request the connection as HTTP/1.1, but will time out after after 30 seconds of inactivity, whereas the connection will be closed after each response from the server if the client requests a HTTP/1.0 connection, for all other types of HTTP version requests and will result in a 505 error(HTTP Version not supported).
+The server can handle up to 100 parallel connections, which can be persistent and kept-alive if the client request the connection as HTTP/1.1, but will time out after after 30 seconds of inactivity, whereas the connection will be closed after each response from the server if the client requests a HTTP/1.0 connection, for all other types of HTTP version requests and will result in a 505 error(HTTP Version not supported).
 # GET
 	In the case of a GET request, the server will generate and build a HTML5 page which it stores in memory and also generate a header for the requested page.
 	The content of the HTML5 page will include the URL of the requested page and the IP address and port number of the client which the browser will then display:
