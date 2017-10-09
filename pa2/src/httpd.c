@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
 				continue;
 			}
 			if(fds[i].revents != POLLIN){
-				printf("Fds error!, revetns =  %d\n", fds[i].revents);
+				perror("Fds error!\n");
 				exit(EXIT_FAILURE);	
 			}
 
@@ -188,7 +188,6 @@ int main(int argc, char *argv[])
 					
 					//connection closed
 					if(reuse == 0){
-						printf("connection is closed for = %d\n", fds[i].fd);
 						triggerClose = true;
 						break;
 					}
