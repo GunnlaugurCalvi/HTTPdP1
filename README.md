@@ -6,7 +6,8 @@ This project is a simple HTTP server, programmed in C, done as an assignment(PA2
 The source of the program itself is inside the directory src, this was done so because when the server runs and recieves request, it will log the request in the logfile server.log inside the src directory.
 
 The log file will consist of a single line for every request in the following format:
-	`timestamp : client IP:client port request method requested URL : response code`
+
+`timestamp : client IP:client port request method requested URL : response code`
 
 Where the timestamp is in ISO 8601 format, precise up to seconds, "client IP" and "client port" are the IP address and port number of the client which sent the request, "request method" will consist of the method type sent by the request(GET or POST or HEAD), "requested URL" is the URL of the response and "response code" is the response code sent to the client by the server:
 		- 200 OK, for a successful GET or HEAD request
