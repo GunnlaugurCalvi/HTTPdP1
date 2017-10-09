@@ -126,8 +126,7 @@ int main(int argc, char *argv[])
 		//This condition will happened if it has waited longer
 		//than 30 seconds
 		if(reuse == 0){
-			perror("Poll timeout\n");
-			break;
+			continue;
 		}
 		currentNfds = nfds;
 		//Loop through the readable file descriptors
