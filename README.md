@@ -55,3 +55,38 @@ Whereas PORT will include the port the server is running on.
 	"curl -v -d "some data" localhost:PORT", for a POST request
 	"curl -X DELETE localhost:PORT", for an example of a unsupported method(delete method)
 Whereas PORT will include the port the server is running on.
+
+# TESTING
+
+We tested the parallel connection feature of our server using a script, 
+we found the said script here:
+	http://marianlonga.com/simulate-parallel-connections-to-a-website/
+This greatly helped us measure the responsiveness of our server if there are multiple users requesting the server at the same time.
+To use this script on our server, you need to create a file(script.sh), where you place the following code:
+
+	#!/bin/bash
+	 
+	# Parallel Connection Simulator
+	# ($1) 1st parameter = website
+	# ($2) 2nd parameter = number of simultaneous requests
+	 
+	initial_time=$(date +%s)
+	 
+	for ((i=1; i<=$2; i++))
+	do
+	  curl -s -o /dev/null $1 && echo "done $i" &
+	done
+	 
+	wait
+	 
+	final_time=$(date +%s)
+	time_elapsed=$(($final_time-$initial_time))
+	 
+	echo $2 "requests processed in" $time_elapsed "s"
+
+Then you need to open a terminal and navigate to the location of the script, execute:
+	"chmod -x script.sh"
+To make the script executable	
+and finally execute the script it like so:
+	"./script.sh 127.0.0.1:PORT number_of_connections"
+Whereas PORT will include the port the server is running on and number_of_connections includes how many users you want to send a request to the server at the same time.
