@@ -12,7 +12,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <glib.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <errno.h>
 //#include <libexplain/poll.h> would be beautiful if this would work
 
