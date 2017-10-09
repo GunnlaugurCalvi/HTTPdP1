@@ -1,4 +1,4 @@
-#include <sys/sockfdet.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -27,11 +27,11 @@ const gint MESSAGESIZE = 4096;
 
 
 //Helper functions
-void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockfdaddr_in client, gchar *respondCode);		
+void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode);		
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
-void buildBody(GString *resp, char msg[], struct sockfdaddr_in cli, bool isGoods);
-void logToFile(char msg[], struct sockfdaddr_in cli, gchar *respondCode);
+void buildBody(GString *resp, char msg[], struct sockaddr_in cli, bool isGoods);
+void logToFile(char msg[], struct sockaddr_in cli, gchar *respondCode);
 void getData(GString *resp, char msg[]);
 void closeConnection(struct pollfd fds, bool free);
 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 	gint sockfd = 0, connfd = 0, reuse, portNumber, timeout_msecs = 30000;
 	int nfds = 1, currentNfds = 0, i, j;
 	gsize conLen;
-	struct sockfdaddr_in server, client;
+	struct sockaddr_in server, client;
 	struct pollfd fds[100];
 	char buf[BUFSIZE], msg[MESSAGESIZE];
 	bool triggerClose = false, freeNfds = false;
@@ -59,22 +59,22 @@ int main(int argc, char *argv[])
 		printf("using portNumber %d\n", portNumber);
 	}
 
-	//Create sockfdet
-	if((sockfd = sockfdet(AF_INET, SOCK_STREAM, 0)) < 0){
+	//Create socket
+	if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 		perror("Socket error\n");
 		exit(EXIT_FAILURE);
 	}
 
-	//Allow sockfdet to be reuseable
-	if((reuse = setsockfdopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&sockfd, sizeof(sockfd))) < 0){
+	//Allow socket to be reuseable
+	if((reuse = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&sockfd, sizeof(sockfd))) < 0){
 		perror("Setsockfdopt error\n");
 		close(sockfd);
 		exit(EXIT_FAILURE);	
 	}
 	
 	//Set the sockfd to be nonblocking, also will
-	//the other sockfdets be nonblocking because they 
-	//inherit that state from the listening sockfdet
+	//the other sockets be nonblocking because they 
+	//inherit that state from the listening socket
 	if((reuse = ioctl(sockfd, FIONBIO, (void *)&sockfd)) < 0){
 		perror("Ioctl error\n");
 		close(sockfd);
@@ -88,15 +88,15 @@ int main(int argc, char *argv[])
 	server.sin_addr.s_addr = htonl(INADDR_ANY);	//Long integer -> Network byte order
 	server.sin_port = htons(portNumber);		//Set port number for the server
 
-	//Bind sockfdet to sockfdet address, exit and close sockfdet if it fails
-	if((reuse = bind(sockfd, (struct sockfdaddr*) &server, sizeof(server))) < 0){
+	//Bind socket to socket address, exit and close socket if it fails
+	if((reuse = bind(sockfd, (struct sockaddr*) &server, sizeof(server))) < 0){
 			perror("Bind error\n");
 			close(sockfd);
 			exit(EXIT_FAILURE);
 	}
 	
 
-	//Listen to the sockfdet, allow queue of maximum 10
+	//Listen to the socket, allow queue of maximum 10
 	if((reuse = listen(sockfd, 10)) < 0){
 		perror("Listen error\n");
 		close(sockfd);
@@ -106,13 +106,13 @@ int main(int argc, char *argv[])
 	//Allocating the pollfd 
 	memset(fds, 0, sizeof(fds));
 	
-	//Set up the first listening sockfdet
+	//Set up the first listening socket
 	//POLLIN allows data other than high-priority
 	//may be read without blocking
 	fds[0].fd = sockfd;
 	fds[0].events = POLLIN;
 	while(true){
-		sockfdlen_t clientlen = (sockfdlen_t) sizeof(client);
+		socklen_t clientlen = (socklen_t) sizeof(client);
 		GString *resp = g_string_new(NULL);
 		GString *headerResponse = g_string_new(NULL);
 
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
 					//Accept the connections that are incoming until we
 					//get EWOULDBLOCK that says we have accepted all 
 					//connections, else we will terminate 
-					if((connfd = accept(sockfd, (struct sockfdaddr*) &client, &clientlen)) < 0){
+					if((connfd = accept(sockfd, (struct sockaddr*) &client, &clientlen)) < 0){
 						if(errno != EWOULDBLOCK){
 							perror("Accept error\n");
 							exit(EXIT_FAILURE);
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 				
 				//We check for existing connection
 				//and receive all the incoming data
-				//from this sockfdet
+				//from this socket
 				while(true){
 					//Recv failure
 					reuse = recv(fds[i].fd, msg, sizeof(msg), 0);
@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
 }
 
 //Here we log all requests the server gets to a server.log
-void logToFile(char msg[], struct sockfdaddr_in client, gchar *respondCode){
+void logToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 	
 	
 	char date[BUFSIZE];
@@ -320,7 +320,7 @@ void logToFile(char msg[], struct sockfdaddr_in client, gchar *respondCode){
 	g_strfreev(urlSplitter);	
 }
 //Here we create a response to the request
-void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockfdaddr_in client, gchar *respondCode){
+void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode){
 	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
 	gchar **getVersion = g_strsplit(HTTPsplitter[2], "\n", -1);
 
@@ -383,7 +383,7 @@ void buildHead(GString *resp){
 	g_string_append(resp, "<title> GINA IS NOT APACHE</title>\r\n");
 	g_string_append(resp, "\n</head>\r\n");
 }
-void buildBody(GString *resp, char msg[], struct sockfdaddr_in client, bool isGoods){
+void buildBody(GString *resp, char msg[], struct sockaddr_in client, bool isGoods){
 
 	//Convert the client port number to string so we can append 
 	//to our GString
