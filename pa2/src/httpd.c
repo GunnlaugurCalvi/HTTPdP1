@@ -7,11 +7,13 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
 #include <time.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <glib.h>
-#include <poll.h>
+#include <sys/poll.h>
+#include <errno.h>
 //#include <libexplain/poll.h> would be beautiful if this would work
 
 #define OK "200 OK"
@@ -38,14 +40,16 @@ void getData(GString *resp, char msg[]);
 int main(int argc, char *argv[])
 {
 	//Initialize and declare variables
-	gint sock = 0, connfd = 0;
+	gint sock = 0, connfd = 0, reuse;
+	int on = 1, nfds = 1, currentNfds = 0, i;
 	gint portNumber, val;
 	gsize conLen;
 	struct sockaddr_in server, client;
-	//struct pollfd fds;
-	gint timeout_msecs = 500;
+	struct pollfd fds[100];
+	gint timeout_msecs = 30000;
 	char buf[BUFSIZE];
 	char msg[MESSAGESIZE];
+	bool isClosed = false;
 	//GHashTable *hashTable;
 
 	//Input is valid
@@ -64,100 +68,199 @@ int main(int argc, char *argv[])
 		perror("Socket error\n");
 		exit(EXIT_FAILURE);
 	}
+
+	//Allow socket to be reuseable
+	if((reuse = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on))) < 0){
+		perror("Setsockopt error\n");
+		close(sock);
+		exit(EXIT_FAILURE);	
+	}
+	
+	//Set the sock to be nonblocking, also will
+	//the other sockets be nonblocking because they 
+	//inherit that state from the listening socket
+	if((reuse = ioctl(sock, FIONBIO, (char *)&on)) < 0){
+		perror("Ioctl error\n");
+		close(sock);
+		exit(EXIT_FAILURE);
+	}
+
+
 	//Allocate memory for the server and buffer
 	memset(&server, 0, sizeof(server));
 	server.sin_family = AF_INET;			//WE ARE FAM ILY
 	server.sin_addr.s_addr = htonl(INADDR_ANY);	//Long integer -> Network byte order
 	server.sin_port = htons(portNumber);		//Set port number for the server
 
-	//Bind socket to socket address, exit if it fails
-	if(bind(sock, (struct sockaddr*) &server, sizeof(server)) < 0){
+	//Bind socket to socket address, exit and close socket if it fails
+	if((reuse = bind(sock, (struct sockaddr*) &server, sizeof(server))) < 0){
 			perror("Bind error\n");
+			close(sock);
 			exit(EXIT_FAILURE);
 	}
-	//Listen to the socket, allow queue of maximum 1
-	if(listen(sock, 1) < 0){
+	
+
+	//Listen to the socket, allow queue of maximum 5
+	if((reuse = listen(sock, 5)) < 0){
 		perror("Listen error\n");
+		close(sock);
 		exit(EXIT_FAILURE);		
 	}
 	
+	//Allocatin the pollfd 
+	memset(fds, 0, sizeof(fds));
+	
+	//Set up the first listening socket
+	//POLLIN allows data other than high-priority
+	//may be read without blocking
+	fds[0].fd = sock;
+	fds[0].events = POLLIN;
 	while(true){
-		connfd = 0;
 		socklen_t clientlen = (socklen_t) sizeof(client);
 		GString *resp = g_string_new(NULL);
 		GString *headerResponse = g_string_new(NULL);
 
-		/*if((val = poll(&fds, sock, timeout_msecs) < 0)){
+		reuse = poll(fds, nfds, timeout_msecs);
+
+		//Poll failed	
+		if(reuse < 0){
 			//[explain_poll]Explains underlying cause of error in more detail
 			//fprintf(stderr, "%s\n", explain_poll(&fd, sock, timeout_msecs));
 			perror("Poll error\n");
-			exit(EXIT_FAILURE);
-		}*/
-	
-		//Accept connection on socket, no restrictions
-		if((connfd = accept(sock, (struct sockaddr*) &client, &clientlen)) < 0){
-			perror("Accept error\n");
-			exit(EXIT_FAILURE);	
-		}
-		//Recieve message
-		if((val = recv(connfd, msg, sizeof(msg)-1, 0)) < 0){
-			perror("Recv error\n");
-			exit(EXIT_FAILURE);
+			break;
 		}
 
-		if(g_str_has_prefix(msg, "GET")){
-			buildHead(resp);
-			buildBooty(resp, msg, client, false);
+		//This condition will happened if it has waited longer
+		//than 30 seconds
+		if(reuse == 0){
+			perror("Poll timeout\n");
+			break;
+		}
+		currentNfds = nfds;
+		//Loop through the readable file descriptors
+		for(i = 0; i < currentNfds; i++){
 			
-			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen, client, OK);
+			//revents are the returned events
+			//check if its POLLIN and if its not
+			//than we shutdown
+			if(fds[i].revents == 0){
+				continue;
+			}
+			if(fds[i].revents != POLLIN){
+				printf("Fds error!, revetns =  %d\n", fds[i].revents);
+				exit(EXIT_FAILURE);	
+			}
 
-			LogToFile(msg, client, OK);
-		}
-		else if(g_str_has_prefix(msg, "POST")){
-			buildHead(resp);
-			buildBooty(resp, msg, client,true);
-			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen, client, CREATED);
-			LogToFile(msg, client, CREATED);			
-		}
-		else if(g_str_has_prefix(msg, "HEAD")){
+			//Accept all connections that are 
+			//in our queue and are on the listening port
+			if(fds[i].fd == sock){
+			
+				while(true){
 	
-			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen, client, OK);
-			LogToFile(msg, client, OK);
+					//Accept the connections that are incoming until we
+					//get EWOULDBLOCK that says we have accepted all 
+					//connections, else we will terminate 
+					if((connfd = accept(sock, (struct sockaddr*) &client, &clientlen)) < 0){
+						if(errno != EWOULDBLOCK){
+							perror("Accept error\n");
+							exit(EXIT_FAILURE);
+						}
+						break;
+					}
+					//Add the connection in to our array of fds
+					fds[nfds].fd = connfd;
+					fds[nfds].events = POLLIN;
+					nfds += 1;
+
+					if(connfd == -1){
+						break;
+					}
+				}
+			}
+			else{
+				
+				//We check for existing connection
+				//and receive all the incoming data
+				//from this socket
+				while(true){
+					//Recv failure
+					reuse = recv(fds[i].fd, msg, sizeof(msg), 0);
+					if(reuse < 0){
+						if(errno != EWOULDBLOCK){
+							perror("Recv error\n");
+							isClosed = true;
+						}
+						break;
+					}
+					
+					//connection closed
+					if(reuse == 0){
+						printf("connection is closed for = %d\n", fds[i].fd);
+						isClosed = true;
+						break;
+					}
+				
+					if(g_str_has_prefix(msg, "GET")){
+						buildHead(resp);
+						buildBooty(resp, msg, client, false);
+					
+						conLen = resp->len;
+						buildHeader(headerResponse, msg, conLen, client, OK);
+
+						LogToFile(msg, client, OK);
+					}
+					else if(g_str_has_prefix(msg, "POST")){
+						buildHead(resp);
+						buildBooty(resp, msg, client,true);
+						conLen = resp->len;
+						buildHeader(headerResponse, msg, conLen, client, CREATED);
+						LogToFile(msg, client, CREATED);			
+					}
+					else if(g_str_has_prefix(msg, "HEAD")){
+						conLen = resp->len;
+						buildHeader(headerResponse, msg, conLen, client, OK);
+						LogToFile(msg, client, OK);
+					}
+					else{
+						conLen = resp->len;
+						buildHeader(headerResponse, msg, conLen, client, METHOD_NOT_ALLOWED);
+						LogToFile(msg, client, METHOD_NOT_ALLOWED);
+					}
+
+					g_string_append(headerResponse, resp->str);
+		
+		
+					//Get the client IP and port in human readable form
+					char *clientIP = inet_ntoa(client.sin_addr);
+					unsigned short cPort = ntohs(client.sin_port);	
+					fprintf(stdout,"Client IP and port %s:%d\n", clientIP, cPort);	
+					fflush(stdout);		
+
+					reuse = write(fds[i].fd, buf, strlen(buf));
+					reuse = write(fds[i].fd, headerResponse->str, headerResponse->len);
+						
+					if(reuse < 0){
+						perror("Write error\n");
+						isClosed = true;
+						break;
+					}		
+				}
+				if(isClosed){		
+					close(fds[i].fd);
+					fds[i].fd = -1;
+				}
+			}
 		}
-		else{
-			conLen = resp->len;
-			buildHeader(headerResponse, msg, conLen, client, METHOD_NOT_ALLOWED);
-			LogToFile(msg, client, METHOD_NOT_ALLOWED);
-		}
-
-		g_string_append(headerResponse, resp->str);
-		
-		//Initilize hash table 
-		//	hashTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-		
-		//	createHashTable(hashTable, msg);
-		
-		//Get the client IP and port in human readable form
-		char *clientIP = inet_ntoa(client.sin_addr);
-		unsigned short cPort = ntohs(client.sin_port);	
-		fprintf(stdout,"Client IP and port %s:%d\n", clientIP, cPort);	
-		fflush(stdout);
-		
-		
-		write(connfd, buf, strlen(buf));
-
-
-		write(connfd, headerResponse->str, headerResponse->len);
 		
 		g_string_free(resp, 1);
 		g_string_free(headerResponse, 1);	
-		shutdown(connfd, SHUT_RDWR);
-		close(connfd);
 	}
-	close(sock);
+	for(i = 0; i < nfds; i++){
+		if(fds[i].fd >= 0){
+			shutdown(fds[i].fd, SHUT_RDWR);
+			close(fds[i].fd);
+		}
+	}
 	return 0;
 }
 
