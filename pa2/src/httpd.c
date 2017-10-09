@@ -1,4 +1,4 @@
-#include <sys/socket.h>
+#include <sys/sockfdet.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -27,27 +27,26 @@ const gint MESSAGESIZE = 4096;
 
 
 //Helper functions
-void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode);		
+void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockfdaddr_in client, gchar *respondCode);		
 void getIsoDate(char *buf);
 void buildHead(GString *headerResponse);
-void buildBooty(GString *resp, char msg[], struct sockaddr_in cli, bool isGoods);
-void LogToFile(char msg[], struct sockaddr_in cli, gchar *respondCode);
+void buildBody(GString *resp, char msg[], struct sockfdaddr_in cli, bool isGoods);
+void logToFile(char msg[], struct sockfdaddr_in cli, gchar *respondCode);
 void getData(GString *resp, char msg[]);
 void closeConnection(struct pollfd fds, bool free);
 
 int main(int argc, char *argv[])
 {
 	//Initialize and declare variables
-	gint sock = 0, connfd = 0, reuse;
-	int on = 1, nfds = 1, currentNfds = 0, i;
-	gint portNumber, val;
+	gint sockfd = 0, connfd = 0, reuse, portNumber, timeout_msecs = 30000;
+	int nfds = 1, currentNfds = 0, i, j;
 	gsize conLen;
-	struct sockaddr_in server, client;
+	struct sockfdaddr_in server, client;
 	struct pollfd fds[100];
-	gint timeout_msecs = 30000;
-	char buf[BUFSIZE];
-	char msg[MESSAGESIZE];
-	bool isClosed = false, freeNfds = false;
+	char buf[BUFSIZE], msg[MESSAGESIZE];
+	bool triggerClose = false, freeNfds = false;
+	char *clientIP;
+	unsigned short cPort;
 
 	//Input is valid
 	if(argc != 2){
@@ -60,25 +59,25 @@ int main(int argc, char *argv[])
 		printf("using portNumber %d\n", portNumber);
 	}
 
-	//Create socket
-	if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+	//Create sockfdet
+	if((sockfd = sockfdet(AF_INET, SOCK_STREAM, 0)) < 0){
 		perror("Socket error\n");
 		exit(EXIT_FAILURE);
 	}
 
-	//Allow socket to be reuseable
-	if((reuse = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on))) < 0){
-		perror("Setsockopt error\n");
-		close(sock);
+	//Allow sockfdet to be reuseable
+	if((reuse = setsockfdopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&sockfd, sizeof(sockfd))) < 0){
+		perror("Setsockfdopt error\n");
+		close(sockfd);
 		exit(EXIT_FAILURE);	
 	}
 	
-	//Set the sock to be nonblocking, also will
-	//the other sockets be nonblocking because they 
-	//inherit that state from the listening socket
-	if((reuse = ioctl(sock, FIONBIO, (char *)&on)) < 0){
+	//Set the sockfd to be nonblocking, also will
+	//the other sockfdets be nonblocking because they 
+	//inherit that state from the listening sockfdet
+	if((reuse = ioctl(sockfd, FIONBIO, (void *)&sockfd)) < 0){
 		perror("Ioctl error\n");
-		close(sock);
+		close(sockfd);
 		exit(EXIT_FAILURE);
 	}
 
@@ -89,31 +88,31 @@ int main(int argc, char *argv[])
 	server.sin_addr.s_addr = htonl(INADDR_ANY);	//Long integer -> Network byte order
 	server.sin_port = htons(portNumber);		//Set port number for the server
 
-	//Bind socket to socket address, exit and close socket if it fails
-	if((reuse = bind(sock, (struct sockaddr*) &server, sizeof(server))) < 0){
+	//Bind sockfdet to sockfdet address, exit and close sockfdet if it fails
+	if((reuse = bind(sockfd, (struct sockfdaddr*) &server, sizeof(server))) < 0){
 			perror("Bind error\n");
-			close(sock);
+			close(sockfd);
 			exit(EXIT_FAILURE);
 	}
 	
 
-	//Listen to the socket, allow queue of maximum 5
-	if((reuse = listen(sock, 10)) < 0){
+	//Listen to the sockfdet, allow queue of maximum 10
+	if((reuse = listen(sockfd, 10)) < 0){
 		perror("Listen error\n");
-		close(sock);
+		close(sockfd);
 		exit(EXIT_FAILURE);		
 	}
 	
-	//Allocatin the pollfd 
+	//Allocating the pollfd 
 	memset(fds, 0, sizeof(fds));
 	
-	//Set up the first listening socket
+	//Set up the first listening sockfdet
 	//POLLIN allows data other than high-priority
 	//may be read without blocking
-	fds[0].fd = sock;
+	fds[0].fd = sockfd;
 	fds[0].events = POLLIN;
 	while(true){
-		socklen_t clientlen = (socklen_t) sizeof(client);
+		sockfdlen_t clientlen = (sockfdlen_t) sizeof(client);
 		GString *resp = g_string_new(NULL);
 		GString *headerResponse = g_string_new(NULL);
 
@@ -121,8 +120,6 @@ int main(int argc, char *argv[])
 
 		//Poll failed	
 		if(reuse < 0){
-			//[explain_poll]Explains underlying cause of error in more detail
-			//fprintf(stderr, "%s\n", explain_poll(&fd, sock, timeout_msecs));
 			perror("Poll error\n");
 			break;
 		}
@@ -150,14 +147,14 @@ int main(int argc, char *argv[])
 
 			//Accept all connections that are 
 			//in our queue and are on the listening port
-			if(fds[i].fd == sock){
+			if(fds[i].fd == sockfd){
 			
 				while(true){
 	
 					//Accept the connections that are incoming until we
 					//get EWOULDBLOCK that says we have accepted all 
 					//connections, else we will terminate 
-					if((connfd = accept(sock, (struct sockaddr*) &client, &clientlen)) < 0){
+					if((connfd = accept(sockfd, (struct sockfdaddr*) &client, &clientlen)) < 0){
 						if(errno != EWOULDBLOCK){
 							perror("Accept error\n");
 							exit(EXIT_FAILURE);
@@ -178,14 +175,14 @@ int main(int argc, char *argv[])
 				
 				//We check for existing connection
 				//and receive all the incoming data
-				//from this socket
+				//from this sockfdet
 				while(true){
 					//Recv failure
 					reuse = recv(fds[i].fd, msg, sizeof(msg), 0);
 					if(reuse < 0){
 						if(errno != EWOULDBLOCK){
 							perror("Recv error\n");
-							isClosed = true;
+							triggerClose = true;
 						}
 						break;
 					}
@@ -193,62 +190,64 @@ int main(int argc, char *argv[])
 					//connection closed
 					if(reuse == 0){
 						printf("connection is closed for = %d\n", fds[i].fd);
-						isClosed = true;
+						triggerClose = true;
 						break;
 					}
-				
+					//Getting the HTTP request type and respond accordingly
 					if(g_str_has_prefix(msg, "GET")){
 						buildHead(resp);
-						buildBooty(resp, msg, client, false);
+						buildBody(resp, msg, client, false);
 					
 						conLen = resp->len;
-						buildHeader(headerResponse, msg, conLen, client, OK);
+						buildResponse(headerResponse, msg, conLen, client, OK);
 
-						LogToFile(msg, client, OK);
+						logToFile(msg, client, OK);
 					}
 					else if(g_str_has_prefix(msg, "POST")){
 						buildHead(resp);
-						buildBooty(resp, msg, client,true);
+						buildBody(resp, msg, client,true);
 						conLen = resp->len;
-						buildHeader(headerResponse, msg, conLen, client, CREATED);
-						LogToFile(msg, client, CREATED);			
+						buildResponse(headerResponse, msg, conLen, client, CREATED);
+						logToFile(msg, client, CREATED);			
 					}
 					else if(g_str_has_prefix(msg, "HEAD")){
 						conLen = resp->len;
-						buildHeader(headerResponse, msg, conLen, client, OK);
-						LogToFile(msg, client, OK);
+						buildResponse(headerResponse, msg, conLen, client, OK);
+						logToFile(msg, client, OK);
 					}
 					else{
 						conLen = resp->len;
-						buildHeader(headerResponse, msg, conLen, client, METHOD_NOT_ALLOWED);
-						LogToFile(msg, client, METHOD_NOT_ALLOWED);
+						buildResponse(headerResponse, msg, conLen, client, METHOD_NOT_ALLOWED);
+						logToFile(msg, client, METHOD_NOT_ALLOWED);
 					}
 
 					g_string_append(headerResponse, resp->str);
 		
 		
 					//Get the client IP and port in human readable form
-					char *clientIP = inet_ntoa(client.sin_addr);
-					unsigned short cPort = ntohs(client.sin_port);	
+					clientIP = inet_ntoa(client.sin_addr);
+					cPort = ntohs(client.sin_port);	
 					fprintf(stdout,"Client IP and port %s:%d\n", clientIP, cPort);	
 					fflush(stdout);		
 
-					reuse = write(fds[i].fd, buf, strlen(buf));
-					reuse = write(fds[i].fd, headerResponse->str, headerResponse->len);
-						
-					if(reuse < 0){
+					//Sending response to client
+					if((reuse = write(fds[i].fd, buf, strlen(buf))) < 0){
 						perror("Write error\n");
-						isClosed = true;
+						triggerClose = true;
 						break;
-					}		
+					}
+					if((reuse = write(fds[i].fd, headerResponse->str, headerResponse->len)) < 0){
+						perror("Write error\n");
+						triggerClose = true;
+						break;
+					}	
 				}
-				if(isClosed){		
+				if(triggerClose){		
 					shutdown(fds[i].fd, SHUT_RDWR);
 					close(fds[i].fd);
 					fds[i].fd = -1;
 					freeNfds = true;
 				}
-				int j;
 				if(freeNfds){
 					freeNfds = false;
 					for(i = 0; i < nfds; i++){
@@ -275,7 +274,8 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void LogToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
+//Here we log all requests the server gets to a server.log
+void logToFile(char msg[], struct sockfdaddr_in client, gchar *respondCode){
 	
 	
 	char date[BUFSIZE];
@@ -319,16 +319,17 @@ void LogToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 	g_strfreev(url);
 	g_strfreev(urlSplitter);	
 }
-void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode){
+//Here we create a response to the request
+void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockfdaddr_in client, gchar *respondCode){
 	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
-	gchar **testy = g_strsplit(HTTPsplitter[2], "\n", -1);
+	gchar **getVersion = g_strsplit(HTTPsplitter[2], "\n", -1);
 
-	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
+	if(g_str_has_prefix(getVersion[0], "HTTP/1.1")){
 		g_string_append(headerResponse, "HTTP/1.1 ");
 		g_string_append(headerResponse, respondCode);
 		g_string_append(headerResponse, "\r\n");
 	}
-	else if(g_str_has_prefix(testy[0], "HTTP/1.0")){
+	else if(g_str_has_prefix(getVersion[0], "HTTP/1.0")){
 		g_string_append(headerResponse, "HTTP/1.0 ");
 		g_string_append(headerResponse, respondCode);
 		g_string_append(headerResponse, "\r\n");
@@ -337,7 +338,7 @@ void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct s
 		g_string_append(headerResponse, "HTTP/1.0 ");
 		g_string_append(headerResponse, HTTP_VERSION_NOT_SUPPORTED);
 		g_string_append(headerResponse, "\r\n");
-		LogToFile(msg, client, HTTP_VERSION_NOT_SUPPORTED);
+		logToFile(msg, client, HTTP_VERSION_NOT_SUPPORTED);
 	}
 	
 	char isodate[BUFSIZE];
@@ -348,7 +349,7 @@ void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct s
 	g_string_append(headerResponse, "Date: ");
 	g_string_append(headerResponse, isodate);
 	g_string_append(headerResponse, "\r\n");
-	if(g_str_has_prefix(testy[0], "HTTP/1.1")){
+	if(g_str_has_prefix(getVersion[0], "HTTP/1.1")){
 		g_string_append(headerResponse, "Connection: keep-alive\r\n");
 		g_string_append(headerResponse, "Keep-Alive: timeout=30, max=100\r\n");
 	}
@@ -361,9 +362,9 @@ void buildHeader(GString *headerResponse, char msg[], gsize contentLen, struct s
 	g_string_append(headerResponse, "\r\n\r\n");
 
 	g_strfreev(HTTPsplitter);
-	g_strfreev(testy);
+	g_strfreev(getVersion);
 }
-
+//Gets the current date
 void getIsoDate(char *buf){
 	//Start the clock
 	struct tm *timeZone;
@@ -382,7 +383,7 @@ void buildHead(GString *resp){
 	g_string_append(resp, "<title> GINA IS NOT APACHE</title>\r\n");
 	g_string_append(resp, "\n</head>\r\n");
 }
-void buildBooty(GString *resp, char msg[], struct sockaddr_in client, bool isGoods){
+void buildBody(GString *resp, char msg[], struct sockfdaddr_in client, bool isGoods){
 
 	//Convert the client port number to string so we can append 
 	//to our GString
