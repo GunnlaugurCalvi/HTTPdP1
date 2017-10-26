@@ -21,7 +21,7 @@
 #define HTTP_VERSION_NOT_SUPPORTED "505 HTTP Version not supported"
 
 
-const gint BUFSIZE = 1024;
+const gint BUFSIZE = 2048;
 const gint MESSAGESIZE = 4096;
 
 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 	int nfds = 1, currentNfds = 0, i, j;
 	gsize conLen;
 	struct sockaddr_in server, client;
-	struct pollfd fds[100];
+	struct pollfd fds[200];
 	char buf[BUFSIZE], msg[MESSAGESIZE];
 	bool triggerClose = false, freeNfds = false;
 	char *clientIP;
@@ -126,7 +126,8 @@ int main(int argc, char *argv[])
 		//This condition will happened if it has waited longer
 		//than 30 seconds
 		if(reuse == 0){
-			continue;
+			perror("Poll timeout!\n");
+			break;
 		}
 		currentNfds = nfds;
 		//Loop through the readable file descriptors
