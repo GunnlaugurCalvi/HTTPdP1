@@ -17,13 +17,13 @@
 
 #define OK "200 OK"
 #define CREATED "201 Created"
-#define METHOD_NOT_ALLOWED "405 Method Not Allowed"
+#define NOT_IMPLEMENTED "501 Not Implemented"
+//#define METHOD_NOT_ALLOWED "405 Method Not Allowed"
 #define HTTP_VERSION_NOT_SUPPORTED "505 HTTP Version not supported"
 
 
 const gint BUFSIZE = 2048;
 const gint MESSAGESIZE = 4096;
-
 
 //Helper functions
 void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode);		
@@ -215,8 +215,8 @@ int main(int argc, char *argv[])
 					}
 					else{
 						conLen = resp->len;
-						buildResponse(headerResponse, msg, conLen, client, METHOD_NOT_ALLOWED);
-						logToFile(msg, client, METHOD_NOT_ALLOWED);
+						buildResponse(headerResponse, msg, conLen, client, NOT_IMPLEMENTED);
+						logToFile(msg, client, NOT_IMPLEMENTED);
 					}
 
 					g_string_append(headerResponse, resp->str);
@@ -283,14 +283,20 @@ void logToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 	char *clientIP = inet_ntoa(client.sin_addr);
 	unsigned short clientPort = ntohs(client.sin_port);
 	GString *requestMethod = g_string_new("");
-	
 	GString *requestURL = g_string_new("http://");	
+	GString *statusCode = g_string_new("");
+
 	gchar **splitter = g_strsplit(msg, "Host: ", -1);
+	gchar **sCode = splitter;	
+	
+	gchar **sCodeSplitter = g_strsplit(sCode[0], " ", -1);
+	g_string_append(statusCode, g_strstrip(sCodeSplitter[0]));
+	
 	gchar **url = g_strsplit(splitter[1], "\n", -1);
 	gchar **urlSplitter = g_strsplit(msg, " ", -1);
-
+	
+	
 	g_string_append(requestURL, g_strstrip(url[0]));
-
 	g_string_append(requestURL, g_strstrip(urlSplitter[1]));
 
 	if(g_str_has_prefix(msg, "GET")){
@@ -299,8 +305,11 @@ void logToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 	else if(g_str_has_prefix(msg, "POST")){
 		g_string_append(requestMethod, "POST");
 	}
-	else{
+	else if(g_str_has_prefix(msg, "HEAD")){
 		g_string_append(requestMethod, "HEAD");
+	}
+	else{
+		g_string_append(requestMethod, statusCode->str);
 	}
 	
 	FILE *logger = fopen("server.log", "a");
@@ -313,9 +322,12 @@ void logToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 		perror("File open error\n");
 		return;	
 	}
-	g_strfreev(splitter);	
 	g_string_free(requestMethod, 1);
 	g_string_free(requestURL, 1);
+	g_string_free(statusCode, 1);
+	g_strfreev(sCode);	
+	g_strfreev(sCodeSplitter);	
+	//g_strfreev(splitter);	
 	g_strfreev(url);
 	g_strfreev(urlSplitter);	
 }
@@ -323,6 +335,9 @@ void logToFile(char msg[], struct sockaddr_in client, gchar *respondCode){
 void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct sockaddr_in client, gchar *respondCode){
 	gchar **HTTPsplitter = g_strsplit(msg, " ", -1);
 	gchar **getVersion = g_strsplit(HTTPsplitter[2], "\n", -1);
+	
+//	gchar **getStatus = g_strsplit()
+
 
 	if(g_str_has_prefix(getVersion[0], "HTTP/1.1")){
 		g_string_append(headerResponse, "HTTP/1.1 ");
