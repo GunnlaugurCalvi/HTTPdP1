@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 	int nfds = 1, currentNfds = 0, i, j;
 	gsize conLen;
 	struct sockaddr_in server, client;
-	struct pollfd fds[200];
+	struct pollfd fds[100];
 	char buf[BUFSIZE], msg[MESSAGESIZE];
 	bool triggerClose = false, freeNfds = false;
 	char *clientIP;
@@ -176,8 +176,9 @@ int main(int argc, char *argv[])
 				//and receive all the incoming data
 				//from this socket
 				while(true){
-					//Recv failure
 					reuse = recv(fds[i].fd, msg, sizeof(msg), 0);
+					printf("HERE %d\n", reuse);	
+					//Recv failure
 					if(reuse < 0){
 						if(errno != EWOULDBLOCK){
 							perror("Recv error\n");
@@ -191,6 +192,7 @@ int main(int argc, char *argv[])
 						triggerClose = true;
 						break;
 					}
+					msg[reuse] = '\0';
 					//Getting the HTTP request type and respond accordingly
 					if(g_str_has_prefix(msg, "GET")){
 						buildHead(resp);
@@ -229,18 +231,18 @@ int main(int argc, char *argv[])
 					fflush(stdout);		
 
 					//Sending response to client
-					if((reuse = write(fds[i].fd, buf, strlen(buf))) < 0){
+					/*if((reuse = write(fds[i].fd, buf, strlen(buf))) < 0){
 						perror("Write error\n");
 						triggerClose = true;
 						break;
-					}
+					}*/
 					if((reuse = write(fds[i].fd, headerResponse->str, headerResponse->len)) < 0){
 						perror("Write error\n");
 						triggerClose = true;
 						break;
 					}	
 				}
-				//Closes all broken connections 
+				//Closes all broken/(to be closed) connections 
 				if(triggerClose){		
 					shutdown(fds[i].fd, SHUT_RDWR);
 					close(fds[i].fd);
@@ -357,7 +359,7 @@ void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct
 	}
 	
 	char isodate[BUFSIZE];
-	char gsizeToUnsigned[10];
+	gchar gsizeToUnsigned[10];
 	//Write out time in ISO 8601 format!
 	getIsoDate(isodate);
 	g_string_append(headerResponse, "Content-Type: text/html; charset=utf-8\r\n");
