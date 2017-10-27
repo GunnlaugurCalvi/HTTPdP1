@@ -18,7 +18,6 @@
 #define OK "200 OK"
 #define CREATED "201 Created"
 #define NOT_IMPLEMENTED "501 Not Implemented"
-//#define METHOD_NOT_ALLOWED "405 Method Not Allowed"
 #define HTTP_VERSION_NOT_SUPPORTED "505 HTTP Version not supported"
 
 
@@ -375,10 +374,16 @@ void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct
 	else{
 		g_string_append(headerResponse, "Connection: close\r\n");
 	}
-	g_string_append(headerResponse, "Content-Length: ");
-	sprintf(gsizeToUnsigned, "%lu", contentLen);
-	g_string_append(headerResponse, gsizeToUnsigned);
-	g_string_append(headerResponse, "\r\n\r\n");
+
+	if(!g_str_has_prefix(msg, "HEAD")){
+		g_string_append(headerResponse, "Content-Length: ");
+		sprintf(gsizeToUnsigned, "%lu", contentLen);
+		g_string_append(headerResponse, gsizeToUnsigned);
+		g_string_append(headerResponse, "\r\n\r\n");
+	}
+	else{
+		g_string_append(headerResponse, "\r\n");
+	}
 
 	g_strfreev(HTTPsplitter);
 	g_strfreev(getVersion);
@@ -460,3 +465,4 @@ void getData(GString *resp, char msg[]){
 	g_strfreev(dataSplitter);
 	g_strfreev(dataSize);
 }
+//#define METHOD_NOT_ALLOWED "405 Method Not Allowed"
