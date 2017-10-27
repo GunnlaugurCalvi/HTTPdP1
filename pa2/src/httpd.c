@@ -128,6 +128,7 @@ int main(int argc, char *argv[])
 		if(reuse == 0){
 			perror("Poll timeout!\n");
 			break;
+			//close instead break
 		}
 		currentNfds = nfds;
 		//Loop through the readable file descriptors
@@ -174,10 +175,10 @@ int main(int argc, char *argv[])
 				
 				//We check for existing connection
 				//and receive all the incoming data
-				//from this socket
+				//from this socketi
 				while(true){
 					reuse = recv(fds[i].fd, msg, sizeof(msg), 0);
-					printf("HERE %d\n", reuse);	
+				
 					//Recv failure
 					if(reuse < 0){
 						if(errno != EWOULDBLOCK){
@@ -193,6 +194,7 @@ int main(int argc, char *argv[])
 						break;
 					}
 					msg[reuse] = '\0';
+					//printf("Recv number --> %d", reuse);
 					//Getting the HTTP request type and respond accordingly
 					if(g_str_has_prefix(msg, "GET")){
 						buildHead(resp);
@@ -374,7 +376,7 @@ void buildResponse(GString *headerResponse, char msg[], gsize contentLen, struct
 		g_string_append(headerResponse, "Connection: close\r\n");
 	}
 	g_string_append(headerResponse, "Content-Length: ");
-	sprintf(gsizeToUnsigned, "%u", contentLen);
+	sprintf(gsizeToUnsigned, "%lu", contentLen);
 	g_string_append(headerResponse, gsizeToUnsigned);
 	g_string_append(headerResponse, "\r\n\r\n");
 
