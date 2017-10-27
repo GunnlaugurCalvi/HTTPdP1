@@ -57,6 +57,14 @@ Whereas PORT will include the port the server is running on.
 	"curl -X DELETE localhost:PORT", for an example of a unsupported method(delete method)
 Whereas PORT will include the port the server is running on.
 
+# FAIRNESS
+All clients that sends a request to the server will eventually receive a reply.
+After the whole proccess of creating a socket make it reusable, nonblocking and bind it
+we listen to the socket and having maximum length of the queue 10(of pending connections).
+Then we use poll system-call(for the lowest overhead on a machine) and take in a struct of file descriptor and number of file descriptors
+and we then loop through each connection and serve them their goods. 
+
+
 # TESTING
 
 We tested the parallel connection feature of our server using a script, 
