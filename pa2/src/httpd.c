@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 	gsize conLen;
 	struct sockaddr_in server, client;
 	struct pollfd fds[100];
-	char buf[BUFSIZE], msg[MESSAGESIZE];
+	char msg[MESSAGESIZE];
 	bool triggerClose = false, freeNfds = false;
 	char *clientIP;
 	unsigned short cPort;
@@ -126,8 +126,16 @@ int main(int argc, char *argv[])
 		//than 30 seconds
 		if(reuse == 0){
 			perror("Poll timeout!\n");
+			/*triggerClose = true;*/
 			break;
-			//close instead break
+			/*while(true){
+				for(i = 0; i < nfds; i++){
+					if(fds[i].fd >= 0){
+						shutdown(fds[i].fd, SHUT_RDWR);
+						close(fds[i].fd);
+					}
+				}
+			}*/
 		}
 		currentNfds = nfds;
 		//Loop through the readable file descriptors
@@ -160,6 +168,13 @@ int main(int argc, char *argv[])
 						}
 						break;
 					}
+					if((reuse = ioctl(connfd, FIONBIO, (void *)&sockfd)) < 0){
+
+						perror("Ioctl error\n");
+						close(sockfd);
+						exit(EXIT_FAILURE);
+					}
+
 					//Add the connection in to our array of fds
 					fds[nfds].fd = connfd;
 					fds[nfds].events = POLLIN;
@@ -268,6 +283,7 @@ int main(int argc, char *argv[])
 		g_string_free(resp, 1);
 		g_string_free(headerResponse, 1);	
 	}
+
 	//Closes finished connections
 	for(i = 0; i < nfds; i++){
 		if(fds[i].fd >= 0){
@@ -275,6 +291,7 @@ int main(int argc, char *argv[])
 			close(fds[i].fd);
 		}
 	}
+
 	return 0;
 }
 //Here we log all requests the server gets to a server.log
